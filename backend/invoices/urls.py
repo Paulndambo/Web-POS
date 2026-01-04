@@ -1,0 +1,14 @@
+from django.urls import path
+from invoices.views import (
+    InvoiceAPIView, InvoiceDetailAPIView, 
+    InvoiceItemUpdateAPIView, CreateInvoiceItemsAPIView,
+    InvoicePaymentAPIView
+)
+
+urlpatterns = [
+    path("", InvoiceAPIView.as_view(), name="invoices"),
+    path("<int:pk>/details/", InvoiceDetailAPIView.as_view(), name="invoice-details"),
+    path("invoice-item-update/", InvoiceItemUpdateAPIView.as_view(), name="invoice-item-update"),
+    path("new-invoice-items/", CreateInvoiceItemsAPIView.as_view(), name="new-invoice-items"),
+    path("invoice-payment/", InvoicePaymentAPIView.as_view(), name="invoice-payment")
+]
