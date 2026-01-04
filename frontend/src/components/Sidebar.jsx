@@ -10,7 +10,9 @@ import {
   Building2,
   Menu,
   X,
-  LogOut
+  LogOut,
+  UserCheck,
+  Tag
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext.jsx';
 
@@ -37,6 +39,8 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
     { path: '/businesses', label: 'Businesses', icon: Building2 },
     { path: '/users', label: 'Users', icon: Users },
     { path: '/inventory', label: 'Inventory', icon: Package },
+    { path: '/creditors', label: 'Creditors', icon: UserCheck },
+    { path: '/categories', label: 'Categories', icon: Tag },
   ];
 
   const isActive = (path) => {

@@ -18,6 +18,9 @@ import ViewInvoice from './pages/ViewInvoice.jsx';
 import Businesses from './pages/Businesses.jsx';
 import Users from './pages/Users.jsx';
 import Inventory from './pages/Inventory.jsx';
+import Creditors from './pages/Creditors.jsx';
+import ViewCreditor from './pages/ViewCreditor.jsx';
+import Categories from './pages/Categories.jsx';
 
 function App() {
   return (
@@ -122,6 +125,30 @@ function App() {
                   element={
                     <ProtectedRoute>
                       <Inventory />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/creditors"
+                  element={
+                    <ProtectedRoute>
+                      <Creditors />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/creditor/:id"
+                  element={
+                    <ProtectedRoute>
+                      <ViewCreditor />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/categories"
+                  element={
+                    <ProtectedRoute>
+                      <Categories />
                     </ProtectedRoute>
                   }
                 />

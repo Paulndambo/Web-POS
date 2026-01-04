@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Inventory Barcode Scan</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f5f7fa;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+
+        .scan-box {
+            background: #ffffff;
+            padding: 24px;
+            width: 360px;
+            border-radius: 8px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+
+        h2 {
+            margin-bottom: 16px;
+        }
+
+        input {
+            width: 100%;
+            padding: 14px;
+            font-size: 18px;
+            text-align: center;
+        }
+
+        .status {
+            margin-top: 12px;
+            font-size: 14px;
+            color: #555;
+        }
+    </style>
+</head>
+<body>
+
+<div class="scan-box">
+    <h2>Scan Item</h2>
+
+    <input
+        type="text"
+        id="barcode-input"
+        placeholder="Scan barcode"
+        autofocus
+    />
+
+    <div class="status" id="status">
+        Waiting for scan...
+    </div>
+</div>
+
+<script>
+    const input = document.getElementById("barcode-input");
+    const status = document.getElementById("status");
+
+    input.focus();
+
+    // Keep focus in case the user clicks away
+    setInterval(() => input.focus(), 1000);
+
+    input.addEventListener("keydown", function (event) {
+        if (event.key === "Enter") {
+            event.preventDefault();
+
+            const barcode = input.value.trim();
+            if (!barcode) return;
+
+            status.textContent = "Processing scan...";
+
+            fetch("/inventory/scan/", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-CSRFToken": getCSRFToken()
+                },
+                body: JSON.stringify({ barcode: barcode })
+            })
+            .then(response => response.json())
+            .then(data => {
+                status.textContent = `Scanned: ${data.barcode} | Qty: ${data.quantity}`;
+                input.value = "";
+            })
+            .catch(() => {
+                status.textContent = "Scan failed. Try again.";
+                input.value = "";
+            });
+        }
+    });
+
+    function getCSRFToken() {
+        const name = "csrftoken=";
+        const decodedCookie = decodeURIComponent(document.cookie);
+        const cookies = decodedCookie.split(';');
+        for (let cookie of cookies) {
+            cookie = cookie.trim();
+            if (cookie.startsWith(name)) {
+                return cookie.substring(name.length);
+            }
+        }
+        return "";
+    }
+</script>
+
+</body>
+</html>
