@@ -20,6 +20,9 @@ import Users from './pages/Users.jsx';
 import Inventory from './pages/Inventory.jsx';
 import Creditors from './pages/Creditors.jsx';
 import ViewCreditor from './pages/ViewCreditor.jsx';
+import Debtors from './pages/Debtors.jsx';
+import ViewDebtor from './pages/ViewDebtor.jsx';
+import Expenses from './pages/Expenses.jsx';
 import Categories from './pages/Categories.jsx';
 
 function App() {
@@ -141,6 +144,30 @@ function App() {
                   element={
                     <ProtectedRoute>
                       <ViewCreditor />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/debtors"
+                  element={
+                    <ProtectedRoute>
+                      <Debtors />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/debtor/:id"
+                  element={
+                    <ProtectedRoute>
+                      <ViewDebtor />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/expenses"
+                  element={
+                    <ProtectedRoute>
+                      <Expenses />
                     </ProtectedRoute>
                   }
                 />

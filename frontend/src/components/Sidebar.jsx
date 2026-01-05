@@ -12,7 +12,13 @@ import {
   X,
   LogOut,
   UserCheck,
-  Tag
+  Tag,
+  UserMinus,
+  Receipt,
+  ChevronDown,
+  ChevronRight,
+  DollarSign,
+  Settings
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext.jsx';
 
@@ -21,26 +27,92 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(isOpen);
+  const [openMenus, setOpenMenus] = useState({
+    sales: true,
+    inventory: false,
+    finance: false,
+    management: false
+  });
 
   useEffect(() => {
     setSidebarOpen(isOpen);
   }, [isOpen]);
+
+  useEffect(() => {
+    // Auto-expand menu based on current path
+    const path = location.pathname;
+    if (path.includes('/pos') || path.includes('/order') || path.includes('/invoice')) {
+      setOpenMenus(prev => ({ ...prev, sales: true }));
+    } else if (path.includes('/inventory') || path.includes('/categories')) {
+      setOpenMenus(prev => ({ ...prev, inventory: true }));
+    } else if (path.includes('/creditor') || path.includes('/debtor') || path.includes('/expense')) {
+      setOpenMenus(prev => ({ ...prev, finance: true }));
+    } else if (path.includes('/business') || path.includes('/user')) {
+      setOpenMenus(prev => ({ ...prev, management: true }));
+    }
+  }, [location.pathname]);
 
   const handleLogout = () => {
     logout();
     navigate('/login');
   };
 
-  const menuItems = [
-    { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { path: '/pos', label: 'POS', icon: ShoppingCart },
-    { path: '/orders', label: 'Orders', icon: List },
-    { path: '/invoices', label: 'Invoices', icon: FileText },
-    { path: '/businesses', label: 'Businesses', icon: Building2 },
-    { path: '/users', label: 'Users', icon: Users },
-    { path: '/inventory', label: 'Inventory', icon: Package },
-    { path: '/creditors', label: 'Creditors', icon: UserCheck },
-    { path: '/categories', label: 'Categories', icon: Tag },
+  const toggleMenu = (menuKey) => {
+    setOpenMenus(prev => ({
+      ...prev,
+      [menuKey]: !prev[menuKey]
+    }));
+  };
+
+  const menuStructure = [
+    { 
+      path: '/dashboard', 
+      label: 'Dashboard', 
+      icon: LayoutDashboard,
+      type: 'single'
+    },
+    {
+      key: 'sales',
+      label: 'Sales',
+      icon: ShoppingCart,
+      type: 'group',
+      children: [
+        { path: '/pos', label: 'POS', icon: ShoppingCart },
+        { path: '/orders', label: 'Orders', icon: List },
+        { path: '/invoices', label: 'Invoices', icon: FileText },
+      ]
+    },
+    {
+      key: 'inventory',
+      label: 'Inventory',
+      icon: Package,
+      type: 'group',
+      children: [
+        { path: '/inventory', label: 'Products', icon: Package },
+        { path: '/categories', label: 'Categories', icon: Tag },
+      ]
+    },
+    {
+      key: 'finance',
+      label: 'Finance',
+      icon: DollarSign,
+      type: 'group',
+      children: [
+        { path: '/creditors', label: 'Creditors', icon: UserCheck },
+        { path: '/debtors', label: 'Debtors', icon: UserMinus },
+        { path: '/expenses', label: 'Expenses', icon: Receipt },
+      ]
+    },
+    {
+      key: 'management',
+      label: 'Management',
+      icon: Settings,
+      type: 'group',
+      children: [
+        { path: '/businesses', label: 'Businesses', icon: Building2 },
+        { path: '/users', label: 'Users', icon: Users },
+      ]
+    }
   ];
 
   const isActive = (path) => {
@@ -48,6 +120,10 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
       return location.pathname === '/dashboard' || location.pathname === '/';
     }
     return location.pathname === path || location.pathname.startsWith(path + '/');
+  };
+
+  const isGroupActive = (children) => {
+    return children.some(child => isActive(child.path));
   };
 
   return (
@@ -86,28 +162,84 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
 
           {/* Navigation */}
           <nav className="flex-1 overflow-y-auto p-4">
-            <ul className="space-y-2">
-              {menuItems.map((item) => {
+            <ul className="space-y-1">
+              {menuStructure.map((item) => {
+                if (item.type === 'single') {
+                  const Icon = item.icon;
+                  const active = isActive(item.path);
+                  return (
+                    <li key={item.path}>
+                      <Link
+                        to={item.path === '/dashboard' ? '/dashboard' : item.path}
+                        onClick={() => {
+                          if (window.innerWidth < 1024) {
+                            toggleSidebar();
+                          }
+                        }}
+                        className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+                          active
+                            ? 'bg-blue-700 text-white shadow-md'
+                            : 'text-blue-100 hover:bg-blue-700 hover:text-white'
+                        }`}
+                      >
+                        <Icon size={20} />
+                        <span className="font-medium">{item.label}</span>
+                      </Link>
+                    </li>
+                  );
+                }
+
+                // Group menu item
                 const Icon = item.icon;
-                const active = isActive(item.path);
+                const isOpen = openMenus[item.key];
+                const hasActiveChild = isGroupActive(item.children);
+                
                 return (
-                  <li key={item.path}>
-                    <Link
-                      to={item.path === '/dashboard' ? '/dashboard' : item.path}
-                      onClick={() => {
-                        if (window.innerWidth < 1024) {
-                          toggleSidebar();
-                        }
-                      }}
-                      className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
-                        active
+                  <li key={item.key}>
+                    <button
+                      onClick={() => toggleMenu(item.key)}
+                      className={`w-full flex items-center justify-between gap-3 px-4 py-3 rounded-lg transition-colors ${
+                        hasActiveChild
                           ? 'bg-blue-700 text-white shadow-md'
                           : 'text-blue-100 hover:bg-blue-700 hover:text-white'
                       }`}
                     >
-                      <Icon size={20} />
-                      <span className="font-medium">{item.label}</span>
-                    </Link>
+                      <div className="flex items-center gap-3">
+                        <Icon size={20} />
+                        <span className="font-medium">{item.label}</span>
+                      </div>
+                      {isOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                    </button>
+                    
+                    {/* Submenu */}
+                    {isOpen && (
+                      <ul className="mt-1 ml-4 space-y-1">
+                        {item.children.map((child) => {
+                          const ChildIcon = child.icon;
+                          const childActive = isActive(child.path);
+                          return (
+                            <li key={child.path}>
+                              <Link
+                                to={child.path}
+                                onClick={() => {
+                                  if (window.innerWidth < 1024) {
+                                    toggleSidebar();
+                                  }
+                                }}
+                                className={`flex items-center gap-3 px-4 py-2 rounded-lg transition-colors text-sm ${
+                                  childActive
+                                    ? 'bg-blue-800 text-white shadow-sm'
+                                    : 'text-blue-100 hover:bg-blue-700 hover:text-white'
+                                }`}
+                              >
+                                <ChildIcon size={18} />
+                                <span className="font-medium">{child.label}</span>
+                              </Link>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
                   </li>
                 );
               })}
