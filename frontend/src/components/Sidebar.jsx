@@ -18,7 +18,8 @@ import {
   ChevronDown,
   ChevronRight,
   DollarSign,
-  Settings
+  Settings,
+  CreditCard
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext.jsx';
 
@@ -45,7 +46,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
       setOpenMenus(prev => ({ ...prev, sales: true }));
     } else if (path.includes('/inventory') || path.includes('/categories')) {
       setOpenMenus(prev => ({ ...prev, inventory: true }));
-    } else if (path.includes('/creditor') || path.includes('/debtor') || path.includes('/expense')) {
+    } else if (path.includes('/creditor') || path.includes('/debtor') || path.includes('/expense') || path.includes('/payment')) {
       setOpenMenus(prev => ({ ...prev, finance: true }));
     } else if (path.includes('/business') || path.includes('/user')) {
       setOpenMenus(prev => ({ ...prev, management: true }));
@@ -101,6 +102,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
         { path: '/creditors', label: 'Creditors', icon: UserCheck },
         { path: '/debtors', label: 'Debtors', icon: UserMinus },
         { path: '/expenses', label: 'Expenses', icon: Receipt },
+        { path: '/payments', label: 'Payments', icon: CreditCard },
       ]
     },
     {

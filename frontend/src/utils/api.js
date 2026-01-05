@@ -1,19 +1,22 @@
 import { BASE_URL } from '../config/currency.js';
+import { getAuthTokens } from './cookies.js';
 
 /**
- * Get the access token from localStorage
+ * Get the access token from cookies
  * @returns {string|null} The access token or null if not found
  */
 export const getAccessToken = () => {
-  return localStorage.getItem('pos_access_token');
+  const { accessToken } = getAuthTokens();
+  return accessToken;
 };
 
 /**
- * Get the refresh token from localStorage
+ * Get the refresh token from cookies
  * @returns {string|null} The refresh token or null if not found
  */
 export const getRefreshToken = () => {
-  return localStorage.getItem('pos_refresh_token');
+  const { refreshToken } = getAuthTokens();
+  return refreshToken;
 };
 
 /**

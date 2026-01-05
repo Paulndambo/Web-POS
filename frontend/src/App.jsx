@@ -23,6 +23,7 @@ import ViewCreditor from './pages/ViewCreditor.jsx';
 import Debtors from './pages/Debtors.jsx';
 import ViewDebtor from './pages/ViewDebtor.jsx';
 import Expenses from './pages/Expenses.jsx';
+import Payments from './pages/Payments.jsx';
 import Categories from './pages/Categories.jsx';
 
 function App() {
@@ -168,6 +169,14 @@ function App() {
                   element={
                     <ProtectedRoute>
                       <Expenses />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/payments"
+                  element={
+                    <ProtectedRoute>
+                      <Payments />
                     </ProtectedRoute>
                   }
                 />

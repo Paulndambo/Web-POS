@@ -1,6 +1,8 @@
-import React, { createContext, useState, useContext, useEffect } from 'react';
+import React, { createContext, useState, useContext, useEffect, useCallback } from 'react';
 import { apiPost } from '../utils/api.js';
 import { BASE_URL } from '../config/currency.js';
+import { setAuthTokens, getAuthTokens, clearAuthTokens, isTokenExpired } from '../utils/cookies.js';
+import { showWarning } from '../utils/toast.js';
 
 const AuthContext = createContext(null);
 
@@ -16,17 +18,52 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  // Logout function that clears both cookies and state
+  const performLogout = useCallback(() => {
+    setUser(null);
+    clearAuthTokens();
+    localStorage.removeItem('pos_user');
+  }, []);
+
   useEffect(() => {
-    // Check if user is logged in from localStorage
+    // Check if user is logged in from cookies
     const storedUser = localStorage.getItem('pos_user');
-    const storedAccessToken = localStorage.getItem('pos_access_token');
-    const storedRefreshToken = localStorage.getItem('pos_refresh_token');
+    const { accessToken } = getAuthTokens();
     
-    if (storedUser && storedAccessToken) {
-      setUser(JSON.parse(storedUser));
+    if (storedUser && accessToken) {
+      // Check if token is expired
+      if (isTokenExpired()) {
+        // Token expired, log user out
+        performLogout();
+      } else {
+        setUser(JSON.parse(storedUser));
+      }
     }
     setLoading(false);
-  }, []);
+  }, [performLogout]);
+
+  // Check token expiration periodically (every minute)
+  useEffect(() => {
+    if (!user) return;
+
+    const checkTokenExpiration = () => {
+      if (isTokenExpired()) {
+        console.log('Access token expired, logging out...');
+        showWarning('Your session has expired. Please login again.');
+        performLogout();
+        // Redirect to login page
+        window.location.href = '/login';
+      }
+    };
+
+    // Check immediately
+    checkTokenExpiration();
+
+    // Check every minute
+    const interval = setInterval(checkTokenExpiration, 60 * 1000);
+
+    return () => clearInterval(interval);
+  }, [user, performLogout]);
 
   const login = async (username, password) => {
     try {
@@ -54,8 +91,10 @@ export const AuthProvider = ({ children }) => {
       
       setUser(userData);
       localStorage.setItem('pos_user', JSON.stringify(userData));
-      localStorage.setItem('pos_access_token', data.access);
-      localStorage.setItem('pos_refresh_token', data.refresh);
+      
+      // Store tokens in cookies with 1 hour expiration for access token
+      // and 24 hours for refresh token
+      setAuthTokens(data.access, data.refresh, 1, 24);
       
       return { success: true };
     } catch (error) {
@@ -68,18 +107,17 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = () => {
-    setUser(null);
-    localStorage.removeItem('pos_user');
-    localStorage.removeItem('pos_access_token');
-    localStorage.removeItem('pos_refresh_token');
+    performLogout();
   };
 
   const getAccessToken = () => {
-    return localStorage.getItem('pos_access_token');
+    const { accessToken } = getAuthTokens();
+    return accessToken;
   };
 
   const getRefreshToken = () => {
-    return localStorage.getItem('pos_refresh_token');
+    const { refreshToken } = getAuthTokens();
+    return refreshToken;
   };
 
   const value = {
