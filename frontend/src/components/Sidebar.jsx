@@ -8,7 +8,6 @@ import {
   Package, 
   LayoutDashboard,
   Building2,
-  Menu,
   X,
   LogOut,
   UserCheck,
@@ -19,38 +18,124 @@ import {
   ChevronRight,
   DollarSign,
   Settings,
-  CreditCard
+  CreditCard,
+  Star,
+  Gift,
+  UtensilsCrossed,
+  Store,
+  Truck,
+  ClipboardList,
+  ShoppingBag,
+  Link2
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext.jsx';
+
+const MENU_STRUCTURE = [
+  { 
+    path: '/dashboard', 
+    label: 'Dashboard', 
+    icon: LayoutDashboard,
+    type: 'single'
+  },
+  {
+    key: 'sales',
+    label: 'Sales',
+    icon: ShoppingCart,
+    type: 'group',
+    children: [
+      { path: '/pos', label: 'POS', icon: ShoppingCart },
+      { path: '/orders', label: 'Orders', icon: List },
+      { path: '/invoices', label: 'Invoices', icon: FileText },
+    ]
+  },
+  {
+    key: 'inventory',
+    label: 'Inventory',
+    icon: Package,
+    type: 'group',
+    children: [
+      { path: '/inventory', label: 'Products', icon: Package },
+      { path: '/categories', label: 'Categories', icon: Tag },
+      { path: '/menu', label: 'Menu', icon: UtensilsCrossed },
+    ]
+  },
+  {
+    key: 'finance',
+    label: 'Finance',
+    icon: DollarSign,
+    type: 'group',
+    children: [
+      { path: '/creditors', label: 'Creditors', icon: UserCheck },
+      { path: '/debtors', label: 'Debtors', icon: UserMinus },
+      { path: '/expenses', label: 'Expenses', icon: Receipt },
+      { path: '/payments', label: 'Payments', icon: CreditCard },
+    ]
+  },
+  {
+    key: 'loyalty',
+    label: 'Customers',
+    icon: Star,
+    type: 'group',
+    children: [
+      { path: '/customers', label: 'Customers', icon: Users },
+      { path: '/gift-cards', label: 'Gift Cards', icon: Gift },
+    ]
+  },
+  {
+    key: 'supply-chain',
+    label: 'Supply Chain',
+    icon: Truck,
+    type: 'group',
+    children: [
+      { path: '/suppliers', label: 'Suppliers', icon: Building2 },
+      { path: '/product-suppliers', label: 'Product Suppliers', icon: Link2 },
+      { path: '/supply-requests', label: 'Supply Requests', icon: ClipboardList },
+      { path: '/purchase-orders', label: 'Purchase Orders', icon: ShoppingBag },
+    ]
+  },
+  {
+    key: 'management',
+    label: 'Management',
+    icon: Settings,
+    type: 'group',
+    children: [
+      { path: '/businesses', label: 'Businesses', icon: Building2 },
+      { path: '/branches', label: 'Branches', icon: Store },
+      { path: '/users', label: 'Users', icon: Users },
+    ]
+  }
+];
 
 const Sidebar = ({ isOpen, toggleSidebar }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout } = useAuth();
-  const [sidebarOpen, setSidebarOpen] = useState(isOpen);
   const [openMenus, setOpenMenus] = useState({
     sales: true,
     inventory: false,
     finance: false,
+    loyalty: false,
+    'supply-chain': false,
     management: false
   });
 
+  // Auto-expand menu based on current path
   useEffect(() => {
-    setSidebarOpen(isOpen);
-  }, [isOpen]);
-
-  useEffect(() => {
-    // Auto-expand menu based on current path
     const path = location.pathname;
-    if (path.includes('/pos') || path.includes('/order') || path.includes('/invoice')) {
-      setOpenMenus(prev => ({ ...prev, sales: true }));
-    } else if (path.includes('/inventory') || path.includes('/categories')) {
-      setOpenMenus(prev => ({ ...prev, inventory: true }));
-    } else if (path.includes('/creditor') || path.includes('/debtor') || path.includes('/expense') || path.includes('/payment')) {
-      setOpenMenus(prev => ({ ...prev, finance: true }));
-    } else if (path.includes('/business') || path.includes('/user')) {
-      setOpenMenus(prev => ({ ...prev, management: true }));
-    }
+    const menuMapping = {
+      sales: ['/pos', '/order', '/invoice'],
+      inventory: ['/inventory', '/categories', '/menu'],
+      finance: ['/creditor', '/debtor', '/expense', '/payment'],
+      loyalty: ['/customer', '/gift-card'],
+      'supply-chain': ['/supplier', '/product-supplier', '/supply-request', '/purchase-order'],
+      management: ['/business', '/branch', '/user']
+    };
+
+    Object.entries(menuMapping).forEach(([key, paths]) => {
+      if (paths.some(p => path.includes(p))) {
+        setOpenMenus(prev => ({ ...prev, [key]: true }));
+      }
+    });
   }, [location.pathname]);
 
   const handleLogout = () => {
@@ -59,79 +144,30 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
   };
 
   const toggleMenu = (menuKey) => {
-    setOpenMenus(prev => ({
-      ...prev,
-      [menuKey]: !prev[menuKey]
-    }));
+    setOpenMenus(prev => ({ ...prev, [menuKey]: !prev[menuKey] }));
   };
-
-  const menuStructure = [
-    { 
-      path: '/dashboard', 
-      label: 'Dashboard', 
-      icon: LayoutDashboard,
-      type: 'single'
-    },
-    {
-      key: 'sales',
-      label: 'Sales',
-      icon: ShoppingCart,
-      type: 'group',
-      children: [
-        { path: '/pos', label: 'POS', icon: ShoppingCart },
-        { path: '/orders', label: 'Orders', icon: List },
-        { path: '/invoices', label: 'Invoices', icon: FileText },
-      ]
-    },
-    {
-      key: 'inventory',
-      label: 'Inventory',
-      icon: Package,
-      type: 'group',
-      children: [
-        { path: '/inventory', label: 'Products', icon: Package },
-        { path: '/categories', label: 'Categories', icon: Tag },
-      ]
-    },
-    {
-      key: 'finance',
-      label: 'Finance',
-      icon: DollarSign,
-      type: 'group',
-      children: [
-        { path: '/creditors', label: 'Creditors', icon: UserCheck },
-        { path: '/debtors', label: 'Debtors', icon: UserMinus },
-        { path: '/expenses', label: 'Expenses', icon: Receipt },
-        { path: '/payments', label: 'Payments', icon: CreditCard },
-      ]
-    },
-    {
-      key: 'management',
-      label: 'Management',
-      icon: Settings,
-      type: 'group',
-      children: [
-        { path: '/businesses', label: 'Businesses', icon: Building2 },
-        { path: '/users', label: 'Users', icon: Users },
-      ]
-    }
-  ];
 
   const isActive = (path) => {
     if (path === '/dashboard') {
       return location.pathname === '/dashboard' || location.pathname === '/';
     }
-    return location.pathname === path || location.pathname.startsWith(path + '/');
+    return location.pathname === path || location.pathname.startsWith(`${path}/`);
   };
 
   const isGroupActive = (children) => {
     return children.some(child => isActive(child.path));
   };
 
+  const closeSidebarOnMobile = () => {
+    if (window.innerWidth < 1024) {
+      toggleSidebar();
+    }
+  };
+
   return (
     <>
       {/* Mobile overlay */}
-      {sidebarOpen && (
+      {isOpen && (
         <div 
           className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
           onClick={toggleSidebar}
@@ -140,9 +176,9 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
 
       {/* Sidebar */}
       <aside
-        className={`fixed top-0 left-0 h-full bg-blue-600 text-white z-50 transform transition-transform duration-300 ease-in-out ${
-          sidebarOpen ? 'translate-x-0' : '-translate-x-full'
-        } w-64 shadow-xl`}
+        className={`fixed top-0 left-0 h-full bg-blue-600 text-white z-50 w-64 shadow-xl transform transition-transform duration-300 ease-in-out ${
+          isOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}
       >
         <div className="flex flex-col h-full">
           {/* Header */}
@@ -157,6 +193,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
             <button
               onClick={toggleSidebar}
               className="lg:hidden p-1 hover:bg-blue-700 rounded transition"
+              aria-label="Close sidebar"
             >
               <X size={20} />
             </button>
@@ -165,19 +202,15 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
           {/* Navigation */}
           <nav className="flex-1 overflow-y-auto p-4">
             <ul className="space-y-1">
-              {menuStructure.map((item) => {
+              {MENU_STRUCTURE.map((item) => {
                 if (item.type === 'single') {
                   const Icon = item.icon;
                   const active = isActive(item.path);
                   return (
                     <li key={item.path}>
                       <Link
-                        to={item.path === '/dashboard' ? '/dashboard' : item.path}
-                        onClick={() => {
-                          if (window.innerWidth < 1024) {
-                            toggleSidebar();
-                          }
-                        }}
+                        to={item.path}
+                        onClick={closeSidebarOnMobile}
                         className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
                           active
                             ? 'bg-blue-700 text-white shadow-md'
@@ -205,6 +238,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
                           ? 'bg-blue-700 text-white shadow-md'
                           : 'text-blue-100 hover:bg-blue-700 hover:text-white'
                       }`}
+                      aria-expanded={isOpen}
                     >
                       <div className="flex items-center gap-3">
                         <Icon size={20} />
@@ -223,11 +257,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
                             <li key={child.path}>
                               <Link
                                 to={child.path}
-                                onClick={() => {
-                                  if (window.innerWidth < 1024) {
-                                    toggleSidebar();
-                                  }
-                                }}
+                                onClick={closeSidebarOnMobile}
                                 className={`flex items-center gap-3 px-4 py-2 rounded-lg transition-colors text-sm ${
                                   childActive
                                     ? 'bg-blue-800 text-white shadow-sm'
@@ -273,4 +303,3 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
 };
 
 export default Sidebar;
-

@@ -33,7 +33,9 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
             "phone_number": user.phone_number,
             "role": user.role,
             "business_id": user.business.id if user.business else None,
+            "branch_id": user.managed_branch.id if hasattr(user, 'managed_branch') else None,
             "business_name": user.business.name if user.business else None,
+            "branch_name": user.managed_branch.name if hasattr(user, 'managed_branch') else None,
             "gender": user.gender
         }
 
@@ -50,6 +52,8 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
             "phone_number": self.user.phone_number,
             "role": self.user.role,
             "business_id": self.user.business.id if self.user.business else None,
+            "branch_id": self.user.managed_branch.id if hasattr(self.user, 'managed_branch') else None,
+            "branch_name": self.user.managed_branch.name if hasattr(self.user, 'managed_branch') else None,
             "business_name": self.user.business.name if self.user.business else None,
             "gender": self.user.gender
         }

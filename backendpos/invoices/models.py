@@ -4,6 +4,8 @@ from decimal import Decimal
 from core.models import AbstractBaseModel
 # Create your models here.
 class Invoice(AbstractBaseModel):
+    business = models.ForeignKey("core.Business", on_delete=models.SET_NULL, null=True, related_name="businessinvoices")
+    branch = models.ForeignKey("core.Branch", on_delete=models.SET_NULL, null=True, related_name="branchinvoices")
     customer_name = models.CharField(max_length=255)
     email = models.EmailField(null=True)
     phone_number = models.CharField(max_length=255)
@@ -11,8 +13,8 @@ class Invoice(AbstractBaseModel):
     due_date = models.DateField()
     invoice_number = models.CharField(max_length=255)
     status = models.CharField(max_length=255)
-    tax = models.DecimalField(max_digits=10, decimal_places=2, default=0)
-    sub_total = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    tax = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0'))
+    sub_total = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0'))
     total_amount = models.DecimalField(max_digits=10, decimal_places=2)
     amount_paid = models.DecimalField(max_digits=10, decimal_places=2)
     
@@ -31,7 +33,7 @@ class InvoiceItem(AbstractBaseModel):
     invoice = models.ForeignKey(Invoice, on_delete=models.CASCADE, related_name="invoiceitems")
     item = models.ForeignKey("inventory.InventoryItem", on_delete=models.CASCADE)
     quantity = models.FloatField(default=1)
-    item_total = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    item_total = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0'))
 
     def __str__(self):
         return self.item.name

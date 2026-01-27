@@ -1,10 +1,13 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext.jsx';
+import { useCustomers } from '../contexts/CustomersContext.jsx';
 import Layout from '../components/Layout.jsx';
 import { CURRENCY_SYMBOL } from '../config/currency.js';
 import { showSuccess, showError, showWarning, showInfo } from '../utils/toast.js';
 import { apiGet, apiPost } from '../utils/api.js';
+import { usePayment } from '../hooks/usePayment.js';
+import PaymentModal from '../components/PaymentModal.jsx';
 import { 
   ArrowLeft, Search, Plus, Minus, X, Printer, DollarSign, 
   FileText, Edit2, Save, Trash2, ShoppingCart, Banknote, 
@@ -15,6 +18,7 @@ const ViewInvoice = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user, getAccessToken } = useAuth();
+  const { customers } = useCustomers();
   
   const [invoice, setInvoice] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -26,7 +30,6 @@ const ViewInvoice = () => {
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [isEditing, setIsEditing] = useState(false);
   const [showAddItems, setShowAddItems] = useState(false);
-  const [showPaymentModal, setShowPaymentModal] = useState(false);
   
   // Customer info editing
   const [customerName, setCustomerName] = useState('');
@@ -34,14 +37,19 @@ const ViewInvoice = () => {
   const [customerPhone, setCustomerPhone] = useState('');
   const [customerAddress, setCustomerAddress] = useState('');
   const [dueDate, setDueDate] = useState('');
+
+  // Use the reusable payment hook
+  const paymentCompleteRef = useRef(null);
   
-  // Payment modal state
-  const [paymentMethod, setPaymentMethod] = useState('');
-  const [paymentAmount, setPaymentAmount] = useState('');
-  const [paymentReference, setPaymentReference] = useState('');
-  const [mobileNumber, setMobileNumber] = useState('');
-  const [splitCashAmount, setSplitCashAmount] = useState('');
-  const [splitMobileAmount, setSplitMobileAmount] = useState('');
+  const payment = usePayment({
+    totalAmount: invoice?.balance || 0,
+    onPaymentComplete: (paymentData) => {
+      if (paymentCompleteRef.current) {
+        paymentCompleteRef.current(paymentData);
+      }
+    },
+    customers: customers || []
+  });
 
   const fetchInvoiceDetails = async () => {
     try {
@@ -111,7 +119,7 @@ const ViewInvoice = () => {
         
         while (endpoint) {
           // Inventory endpoint doesn't require authentication
-          const response = await apiGet(endpoint, false);
+          const response = await apiGet(endpoint);
           
           if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
@@ -122,7 +130,7 @@ const ViewInvoice = () => {
           const transformedProducts = data.results.map(product => ({
             id: product.id,
             name: product.name,
-            price: parseFloat(product.price),
+            price: parseFloat(product.selling_price || 0), // Use selling_price for invoices
             barcode: product.barcode,
             category: product.category_name,
             stock: product.quantity
@@ -192,12 +200,11 @@ const ViewInvoice = () => {
 
   const handleInvoiceItemAction = async (invoiceItemId, actionType, amount) => {
     try {
-      const token = getAccessToken();
-      const bodyContent = JSON.stringify({
+      const updateData = {
         invoice_item: invoiceItemId,
         action_type: actionType,
         amount: amount
-      });
+      };
 
       const response = await apiPost('/invoices/invoice-item-update/', updateData);
 
@@ -272,47 +279,13 @@ const ViewInvoice = () => {
     }
   };
 
-  const handleAddPayment = () => {
-    if (!paymentMethod) {
-      showWarning('Please select a payment method');
-      return;
-    }
+  // Complete transaction function
+  const completeTransaction = async (paymentData) => {
+    if (!invoice) return;
 
-    let paymentAmountValue = 0;
-    
-    if (paymentMethod === 'cash') {
-      paymentAmountValue = parseFloat(paymentAmount) || amountDue;
-      if (paymentAmountValue > amountDue) {
-        showWarning(`Payment amount cannot exceed amount due (${CURRENCY_SYMBOL} ${amountDue.toFixed(2)})`);
-        return;
-      }
-    } else if (paymentMethod === 'mobile') {
-      paymentAmountValue = parseFloat(paymentAmount) || amountDue;
-      if (paymentAmountValue > amountDue) {
-        showWarning(`Payment amount cannot exceed amount due (${CURRENCY_SYMBOL} ${amountDue.toFixed(2)})`);
-        return;
-      }
-    } else if (paymentMethod === 'cash+mpesa') {
-      const cashAmount = parseFloat(splitCashAmount || 0);
-      const mobileAmount = parseFloat(splitMobileAmount || 0);
-      paymentAmountValue = cashAmount + mobileAmount;
-      
-      if (Math.abs(paymentAmountValue - amountDue) > 0.01 && paymentAmountValue > amountDue) {
-        showWarning(`Payment amounts exceed amount due (${CURRENCY_SYMBOL} ${amountDue.toFixed(2)})`);
-        return;
-      }
-    } else {
-      paymentAmountValue = amountDue;
-    }
-
-    if (paymentAmountValue <= 0) {
-      showWarning('Payment amount must be greater than 0');
-      return;
-    }
-
-    // Prepare payment data for backend
-    const finalPaymentAmount = Math.min(paymentAmountValue, amountDue);
-    const change = paymentAmountValue - finalPaymentAmount;
+    const amountDue = invoice.balance || 0;
+    const finalPaymentAmount = paymentData.amountReceived || amountDue;
+    const change = paymentData.change || 0;
     
     // Determine payment status
     let paymentStatus = 'Paid';
@@ -320,29 +293,33 @@ const ViewInvoice = () => {
       paymentStatus = 'Partial';
     }
 
-    const paymentData = {
+    const backendPaymentData = {
       invoice: parseInt(id),
       subtotal: invoice.subtotal || 0,
       tax: invoice.tax || 0,
       total_amount: invoice.total || 0,
       amountReceived: finalPaymentAmount,
-      paymentMethod: paymentMethod === 'cash+mpesa' ? 'cash+mpesa' : paymentMethod,
-      mobileNumber: paymentMethod === 'mobile' || paymentMethod === 'cash+mpesa' ? (mobileNumber || '') : '',
-      mobileNetwork: paymentMethod === 'mobile' || paymentMethod === 'cash+mpesa' ? 'Safaricom' : '',
-      splitCashAmount: paymentMethod === 'cash+mpesa' ? parseFloat(splitCashAmount || 0) : 0,
-      splitMobileAmount: paymentMethod === 'cash+mpesa' ? parseFloat(splitMobileAmount || 0) : 0,
+      paymentMethod: paymentData.paymentMethod === 'cash+mpesa' ? 'cash+mpesa' : paymentData.paymentMethod,
+      mobileNumber: (paymentData.paymentMethod === 'mobile' || paymentData.paymentMethod === 'cash+mpesa') ? (paymentData.mobileNumber || '') : '',
+      mobileNetwork: (paymentData.paymentMethod === 'mobile' || paymentData.paymentMethod === 'cash+mpesa') ? 'Safaricom' : '',
+      splitCashAmount: paymentData.paymentMethod === 'cash+mpesa' ? (paymentData.splitCashAmount || 0) : 0,
+      splitMobileAmount: paymentData.paymentMethod === 'cash+mpesa' ? (paymentData.splitMobileAmount || 0) : 0,
       date: new Date().toISOString().split('T')[0],
       change: change,
-      status: paymentStatus
+      status: paymentStatus,
+      // Include BNPL, Store Credit, and Loyalty Card data if present
+      bnplDownPayment: paymentData.bnplDownPayment,
+      bnplInstallments: paymentData.bnplInstallments,
+      bnplInterval: paymentData.bnplInterval,
+      bnplCustomerId: paymentData.bnplCustomerId,
+      storeCreditUsed: paymentData.storeCreditUsed,
+      storeCreditCustomerId: paymentData.storeCreditCustomerId,
+      loyaltyPointsUsed: paymentData.loyaltyPointsUsed,
+      loyaltyCardNumber: paymentData.loyaltyCardNumber
     };
 
-    // Submit payment to backend
-    handleSubmitPayment(paymentData);
-  };
-
-  const handleSubmitPayment = async (paymentData) => {
     try {
-      const response = await apiPost('/invoices/invoice-payment/', paymentData);
+      const response = await apiPost('/invoices/invoice-payment/', backendPaymentData);
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -354,20 +331,38 @@ const ViewInvoice = () => {
       
       showSuccess('Payment processed successfully!');
       
-      // Reset payment modal
-      setShowPaymentModal(false);
-      setPaymentMethod('');
-      setPaymentAmount('');
-      setPaymentReference('');
-      setSplitCashAmount('');
-      setSplitMobileAmount('');
-      setMobileNumber('');
+      // Reset payment state
+      payment.resetPayment();
       
       // Refresh invoice details
       await fetchInvoiceDetails();
     } catch (error) {
       console.error('Error processing payment:', error);
       showError(`Failed to process payment: ${error.message}`);
+    }
+  };
+
+  // Set the ref so completeTransaction can be called
+  paymentCompleteRef.current = completeTransaction;
+
+  // Process payment using the hook
+  const handleProcessPayment = () => {
+    const result = payment.processPayment();
+    if (result.success) {
+      // For mobile payments, initiate STK push (if needed)
+      if (payment.paymentMethod === 'mobile' || payment.paymentMethod === 'cash+mpesa') {
+        const validation = payment.validatePhoneNumber(payment.mobileNumber);
+        if (validation.valid) {
+          payment.setMobileNumber(validation.cleaned);
+          // For invoices, we don't need STK push - just complete the payment
+          // The onPaymentComplete callback in usePayment will handle calling completeTransaction
+        }
+      } else {
+        // For other payment methods, complete immediately
+        // The onPaymentComplete callback in usePayment will handle calling completeTransaction
+      }
+    } else {
+      showWarning(result.error);
     }
   };
 
@@ -723,9 +718,9 @@ const ViewInvoice = () => {
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
-            {amountDue > 0 && (
+            {(invoice?.balance || 0) > 0 && (
               <button
-                onClick={() => setShowPaymentModal(true)}
+                onClick={() => payment.openPayment()}
                 className="flex-1 sm:flex-none bg-green-600 hover:bg-green-700 active:bg-green-800 text-white px-4 py-3 rounded-lg font-semibold text-base flex items-center justify-center gap-2 touch-manipulation min-h-[44px]"
               >
                 <DollarSign size={18} />
@@ -1159,181 +1154,15 @@ const ViewInvoice = () => {
       )}
 
       {/* Payment Modal */}
-      {showPaymentModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-0 sm:p-4 z-50 overflow-y-auto">
-          <div className="bg-white rounded-none sm:rounded-lg p-4 sm:p-6 max-w-md w-full h-full sm:h-auto my-auto max-h-[100vh] sm:max-h-[95vh] overflow-y-auto">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl sm:text-2xl font-bold">Receive Payment</h2>
-              <button
-                onClick={() => {
-                  setShowPaymentModal(false);
-                  setPaymentMethod('');
-                  setPaymentAmount('');
-                  setPaymentReference('');
-                  setSplitCashAmount('');
-                  setSplitMobileAmount('');
-                }}
-                className="text-gray-500 hover:text-gray-700"
-              >
-                <X size={24} />
-              </button>
-            </div>
-
-            <div className="mb-4">
-              <p className="text-sm text-gray-600 mb-2">Invoice #{invoice.invoiceNo}</p>
-              <p className="text-2xl font-bold text-blue-600">Amount Due: {CURRENCY_SYMBOL} {amountDue.toFixed(2)}</p>
-            </div>
-
-            <div className="mb-4">
-              <label className="block font-semibold mb-3 text-base">Payment Method *</label>
-              <div className="grid grid-cols-3 gap-2 sm:gap-3">
-                <button
-                  onClick={() => setPaymentMethod('cash')}
-                  className={`p-4 sm:p-5 border-2 rounded-lg flex flex-col items-center gap-2 transition-colors touch-manipulation min-h-[80px] ${
-                    paymentMethod === 'cash' ? 'border-blue-600 bg-blue-50' : 'border-gray-300 hover:border-gray-400 active:bg-gray-50'
-                  }`}
-                >
-                  <Banknote size={28} className="sm:w-6 sm:h-6" />
-                  <span className="text-sm font-medium">Cash</span>
-                </button>
-                <button
-                  onClick={() => setPaymentMethod('mobile')}
-                  className={`p-4 sm:p-5 border-2 rounded-lg flex flex-col items-center gap-2 transition-colors touch-manipulation min-h-[80px] ${
-                    paymentMethod === 'mobile' ? 'border-blue-600 bg-blue-50' : 'border-gray-300 hover:border-gray-400 active:bg-gray-50'
-                  }`}
-                >
-                  <Smartphone size={28} className="sm:w-6 sm:h-6" />
-                  <span className="text-sm font-medium">Mpesa</span>
-                </button>
-                <button
-                  onClick={() => setPaymentMethod('cash+mpesa')}
-                  className={`p-4 sm:p-5 border-2 rounded-lg flex flex-col items-center gap-2 transition-colors relative touch-manipulation min-h-[80px] ${
-                    paymentMethod === 'cash+mpesa' ? 'border-purple-600 bg-purple-50' : 'border-gray-300 hover:border-gray-400 active:bg-gray-50'
-                  }`}
-                >
-                  <div className="relative">
-                    <Banknote size={20} className="absolute -top-1 -left-1 text-blue-600" />
-                    <Smartphone size={20} className="absolute -bottom-1 -right-1 text-green-600" />
-                    <Wallet size={16} className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-purple-600 bg-white rounded-full" />
-                  </div>
-                  <span className="text-sm font-medium">Split</span>
-                </button>
-              </div>
-            </div>
-
-            {paymentMethod === 'cash' && (
-              <div className="mb-4">
-                <label className="block font-semibold mb-2 text-base">Payment Amount *</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={paymentAmount}
-                  onChange={(e) => setPaymentAmount(e.target.value)}
-                  placeholder={`${CURRENCY_SYMBOL} ${amountDue.toFixed(2)}`}
-                  max={amountDue}
-                  className="w-full px-4 py-3 text-base border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
-                />
-                <p className="text-sm text-gray-500 mt-2">Maximum: {CURRENCY_SYMBOL} {amountDue.toFixed(2)}</p>
-              </div>
-            )}
-
-            {paymentMethod === 'mobile' && (
-              <div className="mb-4 space-y-3">
-                <div>
-                  <label className="block font-semibold mb-2 text-base">Mobile Number *</label>
-                  <input
-                    type="tel"
-                    value={mobileNumber}
-                    onChange={(e) => setMobileNumber(e.target.value)}
-                    placeholder="0712345678"
-                    className="w-full px-4 py-3 text-base border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block font-semibold mb-2 text-base">Payment Amount *</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={paymentAmount}
-                    onChange={(e) => setPaymentAmount(e.target.value)}
-                    placeholder={`${CURRENCY_SYMBOL} ${amountDue.toFixed(2)}`}
-                    max={amountDue}
-                    className="w-full px-4 py-3 text-base border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
-                  />
-                  <p className="text-sm text-gray-500 mt-2">Maximum: {CURRENCY_SYMBOL} {amountDue.toFixed(2)}</p>
-                </div>
-              </div>
-            )}
-
-            {paymentMethod === 'cash+mpesa' && (
-              <div className="mb-4 space-y-3">
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block font-semibold mb-2 text-sm sm:text-base">Cash Amount</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={splitCashAmount}
-                      onChange={(e) => {
-                        const cashValue = e.target.value;
-                        setSplitCashAmount(cashValue);
-                        const cash = parseFloat(cashValue) || 0;
-                        const remaining = Math.max(0, amountDue - cash);
-                        setSplitMobileAmount(remaining > 0 ? remaining.toFixed(2) : '0.00');
-                      }}
-                      placeholder="0.00"
-                      className="w-full px-3 sm:px-4 py-2 text-sm sm:text-base border-2 border-blue-300 rounded-lg focus:border-blue-500 focus:outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="block font-semibold mb-2 text-sm sm:text-base">Mpesa Amount</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={splitMobileAmount}
-                      readOnly
-                      className="w-full px-3 sm:px-4 py-2 text-sm sm:text-base border-2 border-green-300 rounded-lg bg-gray-50"
-                    />
-                  </div>
-                </div>
-                <p className="text-xs text-gray-500">Total: {CURRENCY_SYMBOL} {(parseFloat(splitCashAmount || 0) + parseFloat(splitMobileAmount || 0)).toFixed(2)}</p>
-              </div>
-            )}
-
-            <div className="mb-4">
-              <label className="block font-semibold mb-2 text-base">Payment Reference (Optional)</label>
-              <input
-                type="text"
-                value={paymentReference}
-                onChange={(e) => setPaymentReference(e.target.value)}
-                placeholder="e.g., Transaction ID, Receipt Number"
-                className="w-full px-4 py-3 text-base border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
-              />
-            </div>
-
-            <div className="flex flex-col sm:flex-row gap-3">
-              <button
-                onClick={() => {
-                  setShowPaymentModal(false);
-                  setPaymentMethod('');
-                  setPaymentAmount('');
-                  setPaymentReference('');
-                  setSplitCashAmount('');
-                  setSplitMobileAmount('');
-                }}
-                className="flex-1 bg-gray-300 hover:bg-gray-400 active:bg-gray-500 text-gray-800 py-4 rounded-lg font-semibold text-base touch-manipulation min-h-[44px]"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleAddPayment}
-                className="flex-1 bg-green-600 hover:bg-green-700 active:bg-green-800 text-white py-4 rounded-lg font-semibold text-base touch-manipulation min-h-[44px]"
-              >
-                Record Payment
-              </button>
-            </div>
-          </div>
-        </div>
+      {invoice && (
+        <PaymentModal
+          show={payment.showPayment}
+          totalAmount={invoice.balance || 0}
+          paymentState={payment}
+          onProcessPayment={handleProcessPayment}
+          onCancel={payment.closePayment}
+          customers={customers || []}
+        />
       )}
       </div>
     </Layout>

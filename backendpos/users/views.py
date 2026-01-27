@@ -42,6 +42,7 @@ class RegisterUserAPIView(generics.CreateAPIView):
         if serializer.is_valid(raise_exception=True):
             user = serializer.save()
             user.business = request.user.business
+            user.branch = request.user.branch
             user.set_password(request.data.get("password"))
             user.save()
 

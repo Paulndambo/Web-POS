@@ -5,6 +5,8 @@ import { AuthProvider } from './contexts/AuthContext.jsx';
 import { OrdersProvider } from './contexts/OrdersContext.jsx';
 import { InvoicesProvider } from './contexts/InvoicesContext.jsx';
 import { UsersProvider } from './contexts/UsersContext.jsx';
+import { CustomersProvider } from './contexts/CustomersContext.jsx';
+import { GiftCardsProvider } from './contexts/GiftCardsContext.jsx';
 import ProtectedRoute from './components/ProtectedRoute.jsx';
 import Login from './components/Login.jsx';
 import POS from './POS.jsx';
@@ -16,6 +18,7 @@ import Invoices from './pages/Invoices.jsx';
 import CreateInvoice from './pages/CreateInvoice.jsx';
 import ViewInvoice from './pages/ViewInvoice.jsx';
 import Businesses from './pages/Businesses.jsx';
+import Branches from './pages/Branches.jsx';
 import Users from './pages/Users.jsx';
 import Inventory from './pages/Inventory.jsx';
 import Creditors from './pages/Creditors.jsx';
@@ -25,6 +28,16 @@ import ViewDebtor from './pages/ViewDebtor.jsx';
 import Expenses from './pages/Expenses.jsx';
 import Payments from './pages/Payments.jsx';
 import Categories from './pages/Categories.jsx';
+import Menu from './pages/Menu.jsx';
+import Customers from './pages/Customers.jsx';
+import ViewCustomer from './pages/ViewCustomer.jsx';
+import GiftCards from './pages/GiftCards.jsx';
+import ViewGiftCard from './pages/ViewGiftCard.jsx';
+import Suppliers from './pages/Suppliers.jsx';
+import ProductSuppliers from './pages/ProductSuppliers.jsx';
+import SupplyRequests from './pages/SupplyRequests.jsx';
+import PurchaseOrders from './pages/PurchaseOrders.jsx';
+import ViewPurchaseOrder from './pages/ViewPurchaseOrder.jsx';
 
 function App() {
   return (
@@ -32,9 +45,11 @@ function App() {
       <OrdersProvider>
         <InvoicesProvider>
           <UsersProvider>
-            <Router>
-              <Toaster />
-              <Routes>
+            <CustomersProvider>
+              <GiftCardsProvider>
+                <Router>
+                  <Toaster />
+                  <Routes>
                 <Route path="/login" element={<Login />} />
                 <Route
                   path="/dashboard"
@@ -117,6 +132,14 @@ function App() {
                   }
                 />
                 <Route
+                  path="/branches"
+                  element={
+                    <ProtectedRoute>
+                      <Branches />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
                   path="/users"
                   element={
                     <ProtectedRoute>
@@ -188,9 +211,91 @@ function App() {
                     </ProtectedRoute>
                   }
                 />
+                <Route
+                  path="/menu"
+                  element={
+                    <ProtectedRoute>
+                      <Menu />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/customers"
+                  element={
+                    <ProtectedRoute>
+                      <Customers />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/customer/:id"
+                  element={
+                    <ProtectedRoute>
+                      <ViewCustomer />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/gift-cards"
+                  element={
+                    <ProtectedRoute>
+                      <GiftCards />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/gift-card/:id"
+                  element={
+                    <ProtectedRoute>
+                      <ViewGiftCard />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/suppliers"
+                  element={
+                    <ProtectedRoute>
+                      <Suppliers />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/product-suppliers"
+                  element={
+                    <ProtectedRoute>
+                      <ProductSuppliers />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/supply-requests"
+                  element={
+                    <ProtectedRoute>
+                      <SupplyRequests />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/purchase-orders"
+                  element={
+                    <ProtectedRoute>
+                      <PurchaseOrders />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/purchase-order/:id"
+                  element={
+                    <ProtectedRoute>
+                      <ViewPurchaseOrder />
+                    </ProtectedRoute>
+                  }
+                />
                 <Route path="*" element={<Navigate to="/dashboard" replace />} />
               </Routes>
-            </Router>
+                </Router>
+              </GiftCardsProvider>
+            </CustomersProvider>
           </UsersProvider>
         </InvoicesProvider>
       </OrdersProvider>

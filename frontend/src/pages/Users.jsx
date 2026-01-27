@@ -289,8 +289,8 @@ const Users = () => {
 
         {/* Modal */}
         {showModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-lg p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-y-auto">
+            <div className="bg-white rounded-lg p-6 max-w-2xl w-full my-auto max-h-[95vh] overflow-y-auto">
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-2xl font-bold text-gray-800">
                   {editingUser ? 'Edit User' : 'Add New User'}
@@ -431,19 +431,21 @@ const Users = () => {
                   </div>
                 )}
 
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    {editingUser ? 'New Password (leave blank to keep current)' : 'Password *'}
-                  </label>
-                  <input
-                    type="password"
-                    value={formData.password}
-                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                    className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
-                    placeholder="Enter a strong password"
-                    required={!editingUser}
-                  />
-                </div>
+                {!editingUser && (
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Password *
+                    </label>
+                    <input
+                      type="password"
+                      value={formData.password}
+                      onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                      className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
+                      placeholder="Enter a strong password"
+                      required
+                    />
+                  </div>
+                )}
 
                 <div className="flex gap-3 pt-4">
                   <button

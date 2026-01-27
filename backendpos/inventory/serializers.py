@@ -1,13 +1,18 @@
 from rest_framework import serializers
 
-from inventory.models import InventoryItem, Category
+from inventory.models import InventoryItem, Category, Menu
 
 
 
 class CategorySerializer(serializers.ModelSerializer):
+    items_count = serializers.SerializerMethodField()
     class Meta:
         model = Category
         fields = "__all__"
+
+    def get_items_count(self, obj):
+        return obj.products.count()
+
 
 class InventoryItemSerializer(serializers.ModelSerializer):
     category_name = serializers.SerializerMethodField()
@@ -20,3 +25,13 @@ class InventoryItemSerializer(serializers.ModelSerializer):
         return obj.category.name
     
 
+class MenuSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Menu
+        fields = "__all__"
+
+
+class StockRestokSerializer(serializers.Serializer):
+    inventory_item_id = serializers.IntegerField()
+    action_type = serializers.CharField(max_length=255)
+    quantity = serializers.FloatField(default=1)

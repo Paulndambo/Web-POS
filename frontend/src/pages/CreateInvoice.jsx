@@ -40,7 +40,7 @@ const CreateInvoice = () => {
         // Fetch all pages of products
         while (endpoint) {
           // Inventory endpoint doesn't require authentication
-          const response = await apiGet(endpoint, false);
+          const response = await apiGet(endpoint);
           
           if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
@@ -52,7 +52,7 @@ const CreateInvoice = () => {
           const transformedProducts = data.results.map(product => ({
             id: product.id,
             name: product.name,
-            price: parseFloat(product.price),
+            price: parseFloat(product.selling_price || 0), // Use selling_price for invoices
             barcode: product.barcode,
             category: product.category_name,
             stock: product.quantity
@@ -125,12 +125,17 @@ const CreateInvoice = () => {
 
   // Helper function to round monetary values to 2 decimal places
   const roundMoney = (value) => Math.round(value * 100) / 100;
+  // Helper function to round monetary values upwards to whole number (no cents) - if any decimal, round up to next whole number
+  const roundMoneyUpToWhole = (value) => {
+    const wholeNumber = Math.ceil(value);
+    return wholeNumber; // Returns integer, will be formatted as .00 when displayed
+  };
 
   const getSubtotal = () => roundMoney(cart.reduce((sum, item) => sum + (item.price * item.quantity), 0));
   
   const getTax = () => roundMoney(getSubtotal() * 0.08);
   
-  const getTotal = () => roundMoney(getSubtotal() + getTax());
+  const getTotal = () => roundMoneyUpToWhole(getSubtotal() + getTax());
 
   const filteredProducts = products.filter(p => {
     const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||

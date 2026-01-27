@@ -19,27 +19,23 @@ const CreateOrder = () => {
 
   const [cart, setCart] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('All');
   const [receipt, setReceipt] = useState(null);
   const [tableNumber, setTableNumber] = useState('');
   const searchInputRef = useRef(null);
 
-  const categories = ['All', ...new Set(products.map(p => p.category))];
-
-  // Fetch products from backend API
+  // Fetch menu items from backend API
   useEffect(() => {
-    const fetchProducts = async () => {
+    const fetchMenuItems = async () => {
       try {
         setProductsLoading(true);
         setProductsError(null);
         
         let allProducts = [];
-        let endpoint = '/inventory';
+        let endpoint = '/inventory/menus/';
         
-        // Fetch all pages of products
+        // Fetch all pages of menu items
         while (endpoint) {
-          // Inventory endpoint doesn't require authentication
-          const response = await apiGet(endpoint, false);
+          const response = await apiGet(endpoint);
           
           if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
@@ -48,13 +44,12 @@ const CreateOrder = () => {
           const data = await response.json();
           
           // Transform API response to match component's expected format
-          const transformedProducts = data.results.map(product => ({
-            id: product.id,
-            name: product.name,
-            price: parseFloat(product.price), // Convert string to number
-            barcode: product.barcode,
-            category: product.category_name, // Use category_name instead of category
-            stock: product.quantity // Use quantity as stock
+          const transformedProducts = data.results.map(item => ({
+            id: item.id,
+            name: item.name,
+            price: parseFloat(item.price || 0),
+            stock: item.quantity || 0,
+            category: 'Menu' // Menu items don't have categories, use default
           }));
           
           allProducts = [...allProducts, ...transformedProducts];
@@ -70,14 +65,14 @@ const CreateOrder = () => {
         
         setProducts(allProducts);
       } catch (error) {
-        console.error('Error fetching products:', error);
+        console.error('Error fetching menu items:', error);
         setProductsError(error.message);
       } finally {
         setProductsLoading(false);
       }
     };
 
-    fetchProducts();
+    fetchMenuItems();
   }, []);
 
   useEffect(() => {
@@ -117,18 +112,21 @@ const CreateOrder = () => {
 
   // Helper function to round monetary values to 2 decimal places
   const roundMoney = (value) => Math.round(value * 100) / 100;
+  // Helper function to round monetary values upwards to whole number (no cents) - if any decimal, round up to next whole number
+  const roundMoneyUpToWhole = (value) => {
+    const wholeNumber = Math.ceil(value);
+    return wholeNumber; // Returns integer, will be formatted as .00 when displayed
+  };
 
   const getSubtotal = () => roundMoney(cart.reduce((sum, item) => sum + (item.price * item.quantity), 0));
   
   const getTax = () => roundMoney(getSubtotal() * 0.08);
   
-  const getTotal = () => roundMoney(getSubtotal() + getTax());
+  const getTotal = () => roundMoneyUpToWhole(getSubtotal() + getTax());
 
   const filteredProducts = products.filter(p => {
-    const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         p.barcode.includes(searchTerm);
-    const matchesCategory = selectedCategory === 'All' || p.category === selectedCategory;
-    return matchesSearch && matchesCategory;
+    const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase());
+    return matchesSearch;
   });
 
   const handleKeyPress = (e) => {
@@ -156,7 +154,7 @@ const CreateOrder = () => {
       items: transformedItems,
       subtotal: roundMoney(parseFloat(orderData.subtotal)),
       tax: roundMoney(parseFloat(orderData.tax)),
-      total: roundMoney(parseFloat(orderData.total)),
+      total: roundMoneyUpToWhole(parseFloat(orderData.total)), // Round total upwards to whole number
       paymentMethod: orderData.paymentMethod || '',
       amountReceived: roundMoney(parseFloat(orderData.amountReceived || 0)),
       change: roundMoney(parseFloat(orderData.change || 0)),
@@ -408,7 +406,7 @@ const CreateOrder = () => {
               <input
                 ref={searchInputRef}
                 type="text"
-                placeholder="Search product or scan barcode..."
+                placeholder="Search menu items..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 onKeyPress={handleKeyPress}
@@ -417,36 +415,19 @@ const CreateOrder = () => {
             </div>
           </div>
 
-          {/* Categories */}
-          <div className="flex gap-1.5 sm:gap-2 mb-2 sm:mb-4 overflow-x-auto pb-2 -mx-2 sm:mx-0 px-2 sm:px-0">
-            {categories.map(cat => (
-              <button
-                key={cat}
-                onClick={() => setSelectedCategory(cat)}
-                className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg whitespace-nowrap transition text-sm sm:text-base ${
-                  selectedCategory === cat
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-white text-gray-700 hover:bg-gray-100'
-                }`}
-              >
-                {cat}
-              </button>
-            ))}
-          </div>
-
           {/* Products Grid */}
           <div className="flex-1 overflow-y-auto -mx-2 sm:mx-0 px-2 sm:px-0">
             {productsLoading ? (
               <div className="flex items-center justify-center h-full">
                 <div className="text-center">
                   <div className="animate-spin rounded-full h-12 w-12 border-b-4 border-blue-600 mx-auto mb-4"></div>
-                  <p className="text-gray-600">Loading products...</p>
+                  <p className="text-gray-600">Loading menu items...</p>
                 </div>
               </div>
             ) : productsError ? (
               <div className="flex items-center justify-center h-full">
                 <div className="text-center bg-red-50 border-2 border-red-200 rounded-lg p-6 max-w-md">
-                  <p className="text-red-600 font-semibold mb-2">Error loading products</p>
+                  <p className="text-red-600 font-semibold mb-2">Error loading menu items</p>
                   <p className="text-sm text-red-500">{productsError}</p>
                 </div>
               </div>
@@ -454,7 +435,7 @@ const CreateOrder = () => {
               <div className="flex items-center justify-center h-full">
                 <div className="text-center">
                   <p className="text-gray-400 text-lg">No products found</p>
-                  <p className="text-gray-400 text-sm mt-2">Try adjusting your search or category filter</p>
+                  <p className="text-gray-400 text-sm mt-2">Try adjusting your search</p>
                 </div>
               </div>
             ) : (
@@ -467,7 +448,6 @@ const CreateOrder = () => {
                   >
                     <div className="flex flex-col h-full">
                       <h3 className="font-semibold text-gray-800 mb-1 text-xs sm:text-sm line-clamp-2">{product.name}</h3>
-                      <p className="text-xs text-gray-500 mb-2 hidden sm:block">{product.category}</p>
                       <div className="mt-auto">
                         <p className="text-base sm:text-lg font-bold text-blue-600">{CURRENCY_SYMBOL} {product.price.toFixed(2)}</p>
                         <p className="text-xs text-gray-400">Stock: {product.stock}</p>

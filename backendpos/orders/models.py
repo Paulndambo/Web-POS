@@ -5,6 +5,7 @@ from core.models import AbstractBaseModel
 # Create your models here.
 class Order(AbstractBaseModel):
     business = models.ForeignKey("core.Business", on_delete=models.CASCADE, related_name="businessorders")
+    branch = models.ForeignKey("core.Branch", on_delete=models.SET_NULL, null=True, related_name="branchorders")
     order_number = models.CharField(max_length=100, unique=True)
     customer_name = models.CharField(max_length=255, null=True, blank=True)
     tax = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0'))
@@ -37,10 +38,12 @@ class Order(AbstractBaseModel):
 
 class OrderItem(AbstractBaseModel):
     business = models.ForeignKey("core.Business", on_delete=models.CASCADE)
+    branch = models.ForeignKey("core.Branch", on_delete=models.SET_NULL, null=True)
     order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name="items")
     inventory_item = models.ForeignKey("inventory.InventoryItem", on_delete=models.SET_NULL, null=True)
+    menu_item = models.ForeignKey("inventory.Menu", on_delete=models.SET_NULL, null=True)
     quantity = models.IntegerField()
     item_total = models.DecimalField(max_digits=10, decimal_places=2)
 
     def __str__(self):
-        return f"{self.inventory_item.name} (Order: {self.order.order_number})"
+        return f"Order: {self.order.order_number}"

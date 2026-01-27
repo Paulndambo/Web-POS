@@ -1,7 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Search, ShoppingCart, Trash2, Plus, Minus, DollarSign, Banknote, Receipt, X, Wallet, Smartphone } from 'lucide-react';
+import { Search, ShoppingCart, Trash2, Plus, Minus, DollarSign, Receipt, X } from 'lucide-react';
 import { useOrders } from './contexts/OrdersContext.jsx';
 import { useAuth } from './contexts/AuthContext.jsx';
+import { useCustomers } from './contexts/CustomersContext.jsx';
+import { usePayment } from './hooks/usePayment.js';
+import PaymentModal from './components/PaymentModal.jsx';
 import Layout from './components/Layout.jsx';
 import { CURRENCY_SYMBOL } from './config/currency.js';
 import { apiGet, apiPost } from './utils/api.js';
@@ -9,6 +12,7 @@ import { apiGet, apiPost } from './utils/api.js';
 const POS = () => {
   const { addOrder } = useOrders();
   const { getAccessToken } = useAuth();
+  const { customers, fetchCustomers } = useCustomers();
   
   const [products, setProducts] = useState([]);
   const [productsLoading, setProductsLoading] = useState(true);
@@ -17,17 +21,81 @@ const POS = () => {
   const [cart, setCart] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
-  const [showPayment, setShowPayment] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState('');
-  const [amountReceived, setAmountReceived] = useState('');
   const [receipt, setReceipt] = useState(null);
-  const [mobileNumber, setMobileNumber] = useState('');
   const [paymentProcessing, setPaymentProcessing] = useState(false);
   const [stkPushSent, setStkPushSent] = useState(false);
-  const [phoneValidation, setPhoneValidation] = useState(null);
-  const [splitCashAmount, setSplitCashAmount] = useState('');
-  const [splitMobileAmount, setSplitMobileAmount] = useState('');
   const searchInputRef = useRef(null);
+
+  // Helper function to round monetary values to 2 decimal places
+  const roundMoney = (value) => Math.round(value * 100) / 100;
+  // Helper function to round monetary values upwards to whole number (no cents) - if any decimal, round up to next whole number
+  const roundMoneyUpToWhole = (value) => {
+    const wholeNumber = Math.ceil(value);
+    return wholeNumber; // Returns integer, will be formatted as .00 when displayed
+  };
+
+  const getSubtotal = () => roundMoney(cart.reduce((sum, item) => sum + (item.price * item.quantity), 0));
+  const getTax = () => roundMoney(getSubtotal() * 0.08);
+  const getTotal = () => roundMoneyUpToWhole(getSubtotal() + getTax());
+
+  // Use ref to store completeTransaction to avoid circular dependency
+  const completeTransactionRef = useRef(null);
+
+  // Use the reusable payment hook
+  const payment = usePayment({
+    totalAmount: getTotal(),
+    onPaymentComplete: (paymentData) => {
+      if (completeTransactionRef.current) {
+        completeTransactionRef.current(paymentData);
+      }
+    },
+    customers: customers || []
+  });
+
+  // Complete transaction function
+  const completeTransaction = async (paymentData) => {
+    const totalAmount = getTotal();
+    const receiptData = {
+      items: cart,
+      subtotal: getSubtotal(),
+      tax: getTax(),
+      total: totalAmount,
+      ...paymentData, // Spread all payment data from the hook
+      date: new Date().toLocaleString(),
+      receiptNo: Math.floor(Math.random() * 100000)
+    };
+
+    // Transform data for backend API
+    const backendOrderData = transformOrderForBackend(receiptData);
+
+    try {
+      const token = getAccessToken();
+      
+      // Submit order to backend
+      const response = await apiPost('/orders/pos-place-order/', backendOrderData);
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const responseData = await response.text();
+      console.log('Order submitted successfully:', responseData);
+    } catch (error) {
+      console.error('Error submitting order to backend:', error);
+      // Still proceed with local storage even if backend submission fails
+      alert('Order saved locally but failed to submit to server. Please check your connection.');
+    }
+
+    // Save order to context (local storage)
+    addOrder(receiptData);
+    
+    setReceipt(receiptData);
+    setCart([]);
+    payment.resetPayment(); // Reset all payment state using the hook
+  };
+
+  // Set the ref after completeTransaction is defined
+  completeTransactionRef.current = completeTransaction;
 
   const categories = ['All', ...new Set(products.map(p => p.category))];
 
@@ -44,7 +112,7 @@ const POS = () => {
         // Fetch all pages of products
         while (endpoint) {
           // Inventory endpoint doesn't require authentication
-          const response = await apiGet(endpoint, false);
+          const response = await apiGet(endpoint);
           
           if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
@@ -56,7 +124,7 @@ const POS = () => {
           const transformedProducts = data.results.map(product => ({
             id: product.id,
             name: product.name,
-            price: parseFloat(product.price), // Convert string to number
+            price: parseFloat(product.selling_price || 0), // Use selling_price for POS
             barcode: product.barcode,
             category: product.category_name, // Use category_name instead of category
             stock: product.quantity // Use quantity as stock
@@ -84,6 +152,9 @@ const POS = () => {
 
     fetchProducts();
   }, []);
+
+  // Note: Customers are already fetched by CustomersContext on mount
+  // No need to fetch again here to avoid flooding the backend
 
   useEffect(() => {
     searchInputRef.current?.focus();
@@ -120,15 +191,6 @@ const POS = () => {
     setCart(cart.filter(item => item.id !== id));
   };
 
-  // Helper function to round monetary values to 2 decimal places
-  const roundMoney = (value) => Math.round(value * 100) / 100;
-
-  const getSubtotal = () => roundMoney(cart.reduce((sum, item) => sum + (item.price * item.quantity), 0));
-  
-  const getTax = () => roundMoney(getSubtotal() * 0.08);
-  
-  const getTotal = () => roundMoney(getSubtotal() + getTax());
-
   const filteredProducts = products.filter(p => {
     const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          p.barcode.includes(searchTerm);
@@ -142,138 +204,35 @@ const POS = () => {
     }
   };
 
-  const validatePhoneNumber = (phoneNumber) => {
-    if (!phoneNumber) {
-      return { valid: false, error: 'Phone number is required' };
-    }
-
-    // Normalize: remove all spaces, dashes, parentheses, and plus signs
-    const normalized = phoneNumber.replace(/[\s\-\(\)\+]/g, '');
-
-    // Check if it contains only digits
-    if (!/^\d+$/.test(normalized)) {
-      return { valid: false, error: 'Phone number should contain only digits' };
-    }
-
-    let cleanedNumber = normalized;
-
-    // Handle different prefixes - Kenyan numbers can be:
-    // Local: 0XX XXX XXXX (10 digits, starts with 0)
-    // International: +254 XX XXX XXXX (13 chars with +, 12 digits without +)
-    // Without prefix: XX XXX XXXX (9 digits)
-    
-    if (cleanedNumber.startsWith('254')) {
-      // International format: 254712345678 (should be 12 digits)
-      if (cleanedNumber.length !== 12) {
-        return { valid: false, error: 'Invalid international format. Should be 254 followed by 9 digits' };
-      }
-      cleanedNumber = cleanedNumber.substring(3); // Remove '254' prefix, should be 9 digits
-    } else if (cleanedNumber.startsWith('0')) {
-      // Local format: 0712345678 (should be 10 digits)
-      if (cleanedNumber.length !== 10) {
-        return { valid: false, error: 'Invalid local format. Should be 0 followed by 9 digits (10 digits total)' };
-      }
-      cleanedNumber = cleanedNumber.substring(1); // Remove '0' prefix, should be 9 digits
-    }
-
-    // After normalization, we should have exactly 9 digits
-    if (cleanedNumber.length !== 9) {
-      if (normalized.length < 9) {
-        return { valid: false, error: 'Phone number is too short. Expected 9-12 digits' };
-      } else if (normalized.length > 12) {
-        return { valid: false, error: 'Phone number is too long. Expected 9-12 digits' };
+  // Process payment using the hook
+  const handleProcessPayment = () => {
+    const result = payment.processPayment();
+    if (result.success) {
+      // For mobile payments, initiate STK push
+      if (payment.paymentMethod === 'mobile' || payment.paymentMethod === 'cash+mpesa') {
+        const validation = payment.validatePhoneNumber(payment.mobileNumber);
+        if (validation.valid) {
+          payment.setMobileNumber(validation.cleaned);
+          setTimeout(() => {
+            initiateMobilePayment(validation.cleaned);
+          }, 0);
+        }
       } else {
-        return { valid: false, error: `Invalid length. Got ${cleanedNumber.length} digits, expected 9 after removing country code` };
+        // For other payment methods, complete immediately
+        // Call the onPaymentComplete callback which will trigger completeTransaction via the ref
+        if (completeTransactionRef.current) {
+          completeTransactionRef.current(result.paymentData);
+        }
       }
-    }
-
-    // Check if it starts with a valid Kenyan mobile prefix (7 for Safaricom/Airtel/Telkom, 1 for some networks)
-    const firstDigit = cleanedNumber[0];
-    const validPrefixes = ['1', '7']; // Kenyan mobile numbers start with 1 or 7 after removing country code
-    
-    if (!validPrefixes.includes(firstDigit)) {
-      return { valid: false, error: 'Invalid phone number format. Kenyan mobile numbers start with 1 or 7 (after removing country code)' };
-    }
-
-    // Return the cleaned number with leading 0 for display/storage
-    return { valid: true, cleaned: '0' + cleanedNumber };
-  };
-
-  const processPayment = () => {
-    if (!paymentMethod) {
-      alert('Please select a payment method');
-      return;
-    }
-
-    if (paymentMethod === 'cash') {
-      const received = parseFloat(amountReceived);
-      if (isNaN(received) || received < getTotal()) {
-        alert('Insufficient amount received');
-        return;
-      }
-      completeTransaction();
-    } else if (paymentMethod === 'mobile') {
-      const validation = validatePhoneNumber(mobileNumber);
-      if (!validation.valid) {
-        alert(validation.error);
-        return;
-      }
-      
-      // Store the cleaned number and proceed with payment
-      const cleanedPhone = validation.cleaned;
-      setMobileNumber(cleanedPhone);
-      
-      // Use setTimeout to ensure state update before initiating payment
-      setTimeout(() => {
-        initiateMobilePayment(cleanedPhone);
-      }, 0);
-    } else if (paymentMethod === 'cash+mpesa') {
-      const cashAmount = parseFloat(splitCashAmount || 0);
-      const mobileAmount = parseFloat(splitMobileAmount || 0);
-      const total = getTotal();
-      
-      if (isNaN(cashAmount) || cashAmount < 0) {
-        alert('Please enter a valid cash amount');
-        return;
-      }
-      
-      if (isNaN(mobileAmount) || mobileAmount < 0) {
-        alert('Please enter a valid mobile money amount');
-        return;
-      }
-      
-      const sum = cashAmount + mobileAmount;
-      if (Math.abs(sum - total) > 0.01) {
-        alert(`Payment amounts don't match total. Cash: ${CURRENCY_SYMBOL} ${cashAmount.toFixed(2)} + Mpesa: ${CURRENCY_SYMBOL} ${mobileAmount.toFixed(2)} = ${CURRENCY_SYMBOL} ${sum.toFixed(2)}, but total is ${CURRENCY_SYMBOL} ${total.toFixed(2)}`);
-        return;
-      }
-      
-      const validation = validatePhoneNumber(mobileNumber);
-      if (!validation.valid) {
-        alert(validation.error);
-        return;
-      }
-      
-      // Store the cleaned number and proceed with payment
-      const cleanedPhone = validation.cleaned;
-      setMobileNumber(cleanedPhone);
-      
-      // Use setTimeout to ensure state update before initiating payment
-      setTimeout(() => {
-        initiateMobilePayment(cleanedPhone);
-      }, 0);
     } else {
-      completeTransaction();
+      alert(result.error);
     }
   };
 
-  const initiateMobilePayment = (phoneNumber = mobileNumber) => {
+  const initiateMobilePayment = (phoneNumber) => {
     setPaymentProcessing(true);
     setStkPushSent(false);
-    setShowPayment(false);
-
-    // Use the provided phone number or fall back to state
-    const phoneToUse = phoneNumber || mobileNumber;
+    payment.setShowPayment(false);
 
     // Simulate sending STK push
     setTimeout(() => {
@@ -283,19 +242,28 @@ const POS = () => {
       setTimeout(() => {
         setPaymentProcessing(false);
         setStkPushSent(false);
-        completeTransaction();
+        // Get payment data and complete transaction
+        const paymentData = payment.buildPaymentData();
+        // Call completeTransaction via the ref
+        if (completeTransactionRef.current) {
+          completeTransactionRef.current(paymentData);
+        }
       }, 4000);
     }, 2000);
   };
 
   // Transform order data to backend API format
   const transformOrderForBackend = (orderData) => {
-    // Map payment method: "mobile" -> "mpesa", "cash" -> "cash", "cash+mpesa" -> "mpesa"
+    // Map payment method: "mobile" -> "mpesa", "cash" -> "cash", "cash+mpesa" -> "mpesa", "bnpl" -> "bnpl", "store-credit" -> "store_credit"
     let backendPaymentMethod = orderData.paymentMethod;
     if (orderData.paymentMethod === 'mobile') {
       backendPaymentMethod = 'mpesa';
     } else if (orderData.paymentMethod === 'cash+mpesa') {
       backendPaymentMethod = 'mpesa'; // Use mpesa for split payments, backend handles split amounts
+    } else if (orderData.paymentMethod === 'store-credit') {
+      backendPaymentMethod = 'store_credit';
+    } else if (orderData.paymentMethod === 'loyalty-card') {
+      backendPaymentMethod = 'loyalty_card';
     }
 
     // Transform items to backend format
@@ -315,7 +283,7 @@ const POS = () => {
       items: transformedItems,
       subtotal: roundMoney(parseFloat(orderData.subtotal)),
       tax: roundMoney(parseFloat(orderData.tax)),
-      total: roundMoney(parseFloat(orderData.total)),
+      total: roundMoneyUpToWhole(parseFloat(orderData.total)), // Round total upwards to whole number
       paymentMethod: backendPaymentMethod,
       amountReceived: roundMoney(parseFloat(orderData.amountReceived || 0)),
       change: roundMoney(parseFloat(orderData.change || 0)),
@@ -323,65 +291,20 @@ const POS = () => {
       mobileNetwork: orderData.mobileNetwork || (orderData.mobileNumber ? 'Safaricom' : ''),
       splitCashAmount: roundMoney(parseFloat(orderData.splitCashAmount || 0)),
       splitMobileAmount: roundMoney(parseFloat(orderData.splitMobileAmount || 0)),
+      bnplDownPayment: roundMoney(parseFloat(orderData.bnplDownPayment || 0)),
+      bnplInstallments: orderData.bnplInstallments || null,
+      bnplInterval: orderData.bnplInterval || null,
+      storeCreditUsed: roundMoney(parseFloat(orderData.storeCreditUsed || 0)),
+      storeCreditBalance: roundMoney(parseFloat(orderData.storeCreditBalance || 0)),
+      loyaltyCardNumber: orderData.loyaltyCardNumber || '',
+      loyaltyPointsUsed: parseInt(orderData.loyaltyPointsUsed || 0),
+      loyaltyPointsBalance: parseInt(orderData.loyaltyPointsBalance || 0),
+      loyaltyPointsRate: parseFloat(orderData.loyaltyPointsRate || 1),
+      loyaltyCustomerName: orderData.loyaltyCustomerName || '',
       status: orderData.status === 'paid' ? 'Paid' : 'Pending',
       date: formattedDate,
       receiptNo: orderData.receiptNo.toString()
     };
-  };
-
-  const completeTransaction = async () => {
-    const totalAmount = getTotal();
-    const cashReceived = paymentMethod === 'cash' ? parseFloat(amountReceived) : 0;
-    const receiptData = {
-      items: cart,
-      subtotal: getSubtotal(),
-      tax: getTax(),
-      total: totalAmount,
-      paymentMethod,
-      amountReceived: paymentMethod === 'cash' ? roundMoney(cashReceived) : roundMoney(totalAmount),
-      change: paymentMethod === 'cash' ? roundMoney(cashReceived - totalAmount) : 0,
-      mobileNumber: (paymentMethod === 'mobile' || paymentMethod === 'cash+mpesa') ? mobileNumber : null,
-      mobileNetwork: (paymentMethod === 'mobile' || paymentMethod === 'cash+mpesa') ? 'Safaricom' : null,
-      splitCashAmount: paymentMethod === 'cash+mpesa' ? roundMoney(parseFloat(splitCashAmount || 0)) : null,
-      splitMobileAmount: paymentMethod === 'cash+mpesa' ? roundMoney(parseFloat(splitMobileAmount || 0)) : null,
-      status: 'paid', // POS orders are always paid immediately
-      date: new Date().toLocaleString(),
-      receiptNo: Math.floor(Math.random() * 100000)
-    };
-
-    // Transform data for backend API
-    const backendOrderData = transformOrderForBackend(receiptData);
-
-    try {
-      const token = getAccessToken();
-      
-      // Submit order to backend
-      const response = await apiPost('/orders/pos-place-order/', backendOrderData);
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const responseData = await response.text();
-      console.log('Order submitted successfully:', responseData);
-    } catch (error) {
-      console.error('Error submitting order to backend:', error);
-      // Still proceed with local storage even if backend submission fails
-      alert('Order saved locally but failed to submit to server. Please check your connection.');
-    }
-
-    // Save order to context (local storage)
-    addOrder(receiptData);
-    
-    setReceipt(receiptData);
-    setCart([]);
-    setShowPayment(false);
-    setPaymentMethod('');
-    setAmountReceived('');
-    setMobileNumber('');
-    setSplitCashAmount('');
-    setSplitMobileAmount('');
-    setPhoneValidation(null);
   };
 
   const clearCart = () => {
@@ -506,7 +429,13 @@ const POS = () => {
             </div>
           </div>
           <div class="footer">
-            <p>Payment: ${receiptData.paymentMethod === 'cash+mpesa' ? 'CASH + MPESA' : receiptData.paymentMethod.toUpperCase()}</p>
+            <p>Payment: ${
+              receiptData.paymentMethod === 'cash+mpesa' ? 'CASH + MPESA' : 
+              receiptData.paymentMethod === 'bnpl' ? 'BUY NOW, PAY LATER' :
+              receiptData.paymentMethod === 'store-credit' ? 'STORE CREDIT' :
+              receiptData.paymentMethod === 'loyalty-card' ? 'LOYALTY CARD' :
+              receiptData.paymentMethod.toUpperCase()
+            }</p>
             ${receiptData.paymentMethod === 'cash' ? `
               <p>Received: ${CURRENCY_SYMBOL} ${receiptData.amountReceived.toFixed(2)}</p>
               <p>Change: ${CURRENCY_SYMBOL} ${receiptData.change.toFixed(2)}</p>
@@ -520,6 +449,32 @@ const POS = () => {
               <p>Mpesa: ${CURRENCY_SYMBOL} ${(receiptData.splitMobileAmount || 0).toFixed(2)}</p>
               <p>Mobile: ${receiptData.mobileNumber}</p>
               <p>Network: Mpesa</p>
+            ` : ''}
+            ${receiptData.paymentMethod === 'bnpl' ? `
+              ${receiptData.bnplDownPayment > 0 ? `<p>Down Payment: ${CURRENCY_SYMBOL} ${(receiptData.bnplDownPayment || 0).toFixed(2)}</p>` : ''}
+              <p>Installments: ${receiptData.bnplInstallments || 3} payments</p>
+              ${(() => {
+                const total = receiptData.total;
+                const downPayment = receiptData.bnplDownPayment || 0;
+                const remaining = total - downPayment;
+                const installmentAmount = remaining / (receiptData.bnplInstallments || 3);
+                const intervalText = receiptData.bnplInterval === 1 ? 'week' : receiptData.bnplInterval === 2 ? '2 weeks' : 'month';
+                return `<p>Amount per payment: ${CURRENCY_SYMBOL} ${installmentAmount.toFixed(2)}</p><p>Payment interval: Every ${intervalText}</p><p>Remaining Balance: ${CURRENCY_SYMBOL} ${remaining.toFixed(2)}</p>`;
+              })()}
+            ` : ''}
+            ${receiptData.paymentMethod === 'store-credit' ? `
+              <p>Store Credit Used: ${CURRENCY_SYMBOL} ${(receiptData.storeCreditUsed || 0).toFixed(2)}</p>
+              <p>Previous Balance: ${CURRENCY_SYMBOL} ${(receiptData.storeCreditBalance || 0).toFixed(2)}</p>
+              <p>Remaining Credit: ${CURRENCY_SYMBOL} ${((receiptData.storeCreditBalance || 0) - (receiptData.storeCreditUsed || 0)).toFixed(2)}</p>
+            ` : ''}
+            ${receiptData.paymentMethod === 'loyalty-card' ? `
+              <p>Customer: ${receiptData.loyaltyCustomerName || 'N/A'}</p>
+              <p>Card Number: ${receiptData.loyaltyCardNumber || 'N/A'}</p>
+              <p>Points Used: ${(receiptData.loyaltyPointsUsed || 0).toLocaleString()}</p>
+              <p>Points Value: ${CURRENCY_SYMBOL} ${((receiptData.loyaltyPointsUsed || 0) * (receiptData.loyaltyPointsRate || 1)).toFixed(2)}</p>
+              <p>Previous Balance: ${(receiptData.loyaltyPointsBalance || 0).toLocaleString()} points</p>
+              <p>Remaining Points: ${((receiptData.loyaltyPointsBalance || 0) - (receiptData.loyaltyPointsUsed || 0)).toLocaleString()}</p>
+              ${((receiptData.loyaltyPointsUsed || 0) * (receiptData.loyaltyPointsRate || 1)) < receiptData.total ? `<p>Remaining Balance: ${CURRENCY_SYMBOL} ${(receiptData.total - ((receiptData.loyaltyPointsUsed || 0) * (receiptData.loyaltyPointsRate || 1))).toFixed(2)} (to be paid separately)</p>` : ''}
             ` : ''}
             <p>Thank you for shopping with us!</p>
           </div>
@@ -720,7 +675,7 @@ const POS = () => {
                 </div>
               </div>
               <button
-                onClick={() => setShowPayment(true)}
+                onClick={payment.openPayment}
                 className="w-full bg-green-600 hover:bg-green-700 text-white py-2.5 sm:py-3 rounded-lg font-semibold text-sm sm:text-base flex items-center justify-center gap-2"
               >
                 <DollarSign size={18} />
@@ -732,283 +687,16 @@ const POS = () => {
       </div>
 
       {/* Payment Modal */}
-      {showPayment && !paymentProcessing && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-2 sm:p-4 z-50 overflow-y-auto">
-          <div className="bg-white rounded-lg p-4 sm:p-6 max-w-md w-full my-auto max-h-[95vh] overflow-y-auto">
-            <h2 className="text-xl sm:text-2xl font-bold mb-3 sm:mb-4">Payment</h2>
-            <div className="mb-3 sm:mb-4">
-              <p className="text-sm sm:text-base text-gray-600 mb-2">Total Amount:</p>
-              <p className="text-2xl sm:text-3xl font-bold text-blue-600">{CURRENCY_SYMBOL} {getTotal().toFixed(2)}</p>
-            </div>
+      <PaymentModal
+        show={payment.showPayment && !paymentProcessing}
+        totalAmount={getTotal()}
+        paymentState={payment}
+        onProcessPayment={handleProcessPayment}
+        onCancel={payment.closePayment}
+        customers={customers || []}
+      />
 
-            <div className="mb-3 sm:mb-4">
-              <p className="font-semibold mb-2 sm:mb-3 text-sm sm:text-base">Select Payment Method:</p>
-              <div className="grid grid-cols-3 gap-2 sm:gap-3">
-                <button
-                  onClick={() => setPaymentMethod('cash')}
-                  className={`p-3 sm:p-4 border-2 rounded-lg flex flex-col items-center gap-1 sm:gap-2 transition-colors ${
-                    paymentMethod === 'cash' ? 'border-blue-600 bg-blue-50' : 'border-gray-300 hover:border-gray-400'
-                  }`}
-                >
-                  <Banknote size={24} />
-                  <span className="text-xs sm:text-sm font-medium">Cash</span>
-                </button>
-                <button
-                  onClick={() => setPaymentMethod('mobile')}
-                  className={`p-3 sm:p-4 border-2 rounded-lg flex flex-col items-center gap-1 sm:gap-2 transition-colors ${
-                    paymentMethod === 'mobile' ? 'border-blue-600 bg-blue-50' : 'border-gray-300 hover:border-gray-400'
-                  }`}
-                >
-                  <Smartphone size={24} />
-                  <span className="text-xs sm:text-sm font-medium">Mpesa</span>
-                </button>
-                <button
-                  onClick={() => {
-                    setPaymentMethod('cash+mpesa');
-                    setSplitCashAmount('');
-                    setSplitMobileAmount('');
-                  }}
-                  className={`p-3 sm:p-4 border-2 rounded-lg flex flex-col items-center gap-1 sm:gap-2 transition-colors relative ${
-                    paymentMethod === 'cash+mpesa' ? 'border-purple-600 bg-purple-50' : 'border-gray-300 hover:border-gray-400'
-                  }`}
-                >
-                  <div className="relative">
-                    <Banknote size={20} className="absolute -top-1 -left-1 text-blue-600" />
-                    <Smartphone size={20} className="absolute -bottom-1 -right-1 text-green-600" />
-                    <Wallet size={16} className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-purple-600 bg-white rounded-full" />
-                  </div>
-                  <span className="text-xs sm:text-sm font-medium">Cash + Mpesa</span>
-                </button>
-              </div>
-            </div>
-
-            {paymentMethod === 'cash' && (
-              <div className="mb-3 sm:mb-4">
-                <label className="block font-semibold mb-2 text-sm sm:text-base">Amount Received:</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={amountReceived}
-                  onChange={(e) => setAmountReceived(e.target.value)}
-                  placeholder="Enter amount"
-                  className="w-full px-3 sm:px-4 py-2 text-sm sm:text-base border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
-                />
-                {amountReceived && parseFloat(amountReceived) >= getTotal() && (
-                  <p className="mt-2 text-sm sm:text-base text-green-600 font-semibold">
-                    Change: {CURRENCY_SYMBOL} {(parseFloat(amountReceived) - getTotal()).toFixed(2)}
-                  </p>
-                )}
-              </div>
-            )}
-
-            {paymentMethod === 'mobile' && (
-              <div className="mb-3 sm:mb-4 space-y-3">
-                <div>
-                  <label className="block font-semibold mb-2 text-sm sm:text-base">Customer Phone Number:</label>
-                  <input
-                    type="tel"
-                    value={mobileNumber}
-                    onChange={(e) => {
-                      // Allow only digits, spaces, dashes, parentheses, and plus sign
-                      const value = e.target.value.replace(/[^\d\s\-\(\)\+]/g, '');
-                      setMobileNumber(value);
-                      // Validate as user types
-                      if (value) {
-                        setPhoneValidation(validatePhoneNumber(value));
-                      } else {
-                        setPhoneValidation(null);
-                      }
-                    }}
-                    placeholder="0712345678"
-                    className={`w-full px-3 sm:px-4 py-2 text-sm sm:text-base border-2 rounded-lg focus:outline-none ${
-                      phoneValidation ? 
-                        (phoneValidation.valid ? 
-                          'border-green-500 focus:border-green-600' : 
-                          'border-red-500 focus:border-red-600') : 
-                        'border-gray-300 focus:border-blue-500'
-                    }`}
-                  />
-                  {phoneValidation && (
-                    <p className={`text-xs mt-1 ${
-                      phoneValidation.valid ? 
-                        'text-green-600' : 
-                        'text-red-600'
-                    }`}>
-                      {phoneValidation.valid ? 
-                        `✓ Valid: ${phoneValidation.cleaned}` : 
-                        phoneValidation.error}
-                    </p>
-                  )}
-                  {!mobileNumber && (
-                    <p className="text-xs text-gray-500 mt-1">
-                      Enter phone number (e.g., 0712345678)
-                    </p>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {paymentMethod === 'cash+mpesa' && (
-              <div className="mb-3 sm:mb-4">
-                <div className="bg-gradient-to-r from-blue-50 to-green-50 border-2 border-purple-200 rounded-lg p-3 sm:p-4 mb-3">
-                  <div className="flex items-center justify-center gap-2 mb-2">
-                    <Wallet size={20} className="text-purple-600" />
-                    <p className="font-bold text-purple-700 text-sm sm:text-base">Split Payment</p>
-                  </div>
-                  <p className="text-xs sm:text-sm text-gray-600 text-center">
-                    Total: <span className="font-bold text-gray-800">{CURRENCY_SYMBOL} {getTotal().toFixed(2)}</span>
-                  </p>
-                </div>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
-                  {/* Cash Section */}
-                  <div className="bg-blue-50 border-2 border-blue-200 rounded-lg p-3 sm:p-4">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Banknote size={20} className="text-blue-600" />
-                      <label className="font-semibold text-blue-700 text-sm sm:text-base">Cash Amount</label>
-                    </div>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={splitCashAmount}
-                      onChange={(e) => {
-                        const cashValue = e.target.value;
-                        setSplitCashAmount(cashValue);
-                        const cash = parseFloat(cashValue) || 0;
-                        const total = getTotal();
-                        const remaining = Math.max(0, total - cash);
-                        setSplitMobileAmount(remaining.toFixed(2));
-                      }}
-                      placeholder="0.00"
-                      className="w-full px-3 sm:px-4 py-2 text-sm sm:text-base border-2 border-blue-300 rounded-lg focus:border-blue-500 focus:outline-none bg-white"
-                    />
-                    {splitCashAmount && (
-                      <p className="mt-2 text-xs sm:text-sm font-semibold text-blue-700">
-                        Cash: {CURRENCY_SYMBOL} {parseFloat(splitCashAmount || 0).toFixed(2)}
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Mobile Money Section */}
-                  <div className="bg-green-50 border-2 border-green-200 rounded-lg p-3 sm:p-4">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Smartphone size={20} className="text-green-600" />
-                      <label className="font-semibold text-green-700 text-sm sm:text-base">Mpesa Amount</label>
-                    </div>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={splitMobileAmount}
-                      onChange={(e) => {
-                        const mobileValue = e.target.value;
-                        setSplitMobileAmount(mobileValue);
-                        const mobile = parseFloat(mobileValue) || 0;
-                        const total = getTotal();
-                        const remaining = Math.max(0, total - mobile);
-                        setSplitCashAmount(remaining.toFixed(2));
-                      }}
-                      placeholder="0.00"
-                      className="w-full px-3 sm:px-4 py-2 text-sm sm:text-base border-2 border-green-300 rounded-lg focus:border-green-500 focus:outline-none bg-white"
-                    />
-                    <p className="mt-2 text-xs sm:text-sm font-semibold text-green-700">
-                      Mpesa: {CURRENCY_SYMBOL} {parseFloat(splitMobileAmount || 0).toFixed(2)}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Validation Message */}
-                {splitCashAmount && splitMobileAmount && (
-                  <div className={`mt-3 p-2 sm:p-3 rounded-lg ${
-                    (parseFloat(splitCashAmount || 0) + parseFloat(splitMobileAmount || 0)).toFixed(2) === getTotal().toFixed(2)
-                      ? 'bg-green-100 border border-green-300'
-                      : 'bg-red-100 border border-red-300'
-                  }`}>
-                    <div className="flex items-center gap-2">
-                      {(parseFloat(splitCashAmount || 0) + parseFloat(splitMobileAmount || 0)).toFixed(2) === getTotal().toFixed(2) ? (
-                        <>
-                          <span className="text-green-600 font-bold">✓</span>
-                          <p className="text-xs sm:text-sm text-green-700 font-semibold">
-                            Payment split matches total amount
-                          </p>
-                        </>
-                      ) : (
-                        <>
-                          <span className="text-red-600 font-bold">✗</span>
-                          <p className="text-xs sm:text-sm text-red-700 font-semibold">
-                            Total: {CURRENCY_SYMBOL} {(parseFloat(splitCashAmount || 0) + parseFloat(splitMobileAmount || 0)).toFixed(2)} / Required: {CURRENCY_SYMBOL} {getTotal().toFixed(2)}
-                          </p>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {/* Mobile Money Details */}
-                <div className="mt-3 sm:mt-4 space-y-3">
-                  <div>
-                    <label className="block font-semibold mb-2 text-sm sm:text-base">Customer Phone Number:</label>
-                    <input
-                      type="tel"
-                      value={mobileNumber}
-                      onChange={(e) => {
-                        const value = e.target.value.replace(/[^\d\s\-\(\)\+]/g, '');
-                        setMobileNumber(value);
-                        if (value) {
-                          setPhoneValidation(validatePhoneNumber(value));
-                        } else {
-                          setPhoneValidation(null);
-                        }
-                      }}
-                      placeholder="0712345678"
-                      className={`w-full px-3 sm:px-4 py-2 text-sm sm:text-base border-2 rounded-lg focus:outline-none ${
-                        phoneValidation ? 
-                          (phoneValidation.valid ? 
-                            'border-green-500 focus:border-green-600' : 
-                            'border-red-500 focus:border-red-600') : 
-                          'border-gray-300 focus:border-purple-500'
-                      }`}
-                    />
-                    {phoneValidation && (
-                      <p className={`text-xs mt-1 ${
-                        phoneValidation.valid ? 
-                          'text-green-600' : 
-                          'text-red-600'
-                      }`}>
-                        {phoneValidation.valid ? 
-                          `✓ Valid: ${phoneValidation.cleaned}` : 
-                          phoneValidation.error}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
-              <button
-                onClick={() => {
-                  setShowPayment(false);
-                  setPaymentMethod('');
-                  setAmountReceived('');
-                  setMobileNumber('');
-                  setPhoneValidation(null);
-                  setSplitCashAmount('');
-                  setSplitMobileAmount('');
-                }}
-                className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-800 py-2.5 sm:py-2 rounded-lg font-semibold text-sm sm:text-base"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={processPayment}
-                className="flex-1 bg-green-600 hover:bg-green-700 text-white py-2.5 sm:py-2 rounded-lg font-semibold text-sm sm:text-base"
-              >
-                {paymentMethod === 'mobile' || paymentMethod === 'cash+mpesa' ? 'Send STK Push' : 'Complete Payment'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Mobile Payment Processing Modal */}
 
       {/* Mobile Payment Processing Modal */}
       {paymentProcessing && (
@@ -1026,7 +714,7 @@ const POS = () => {
                   <h2 className="text-xl sm:text-2xl font-bold text-gray-800 mb-2">Waiting for Payment</h2>
                   <div className="bg-blue-50 border-2 border-blue-200 rounded-lg p-3 sm:p-4 mb-3 sm:mb-4">
                     <p className="text-sm sm:text-base text-blue-800 font-semibold mb-1">STK Push sent to</p>
-                    <p className="text-lg sm:text-2xl font-bold text-blue-900 break-all">{mobileNumber}</p>
+                    <p className="text-lg sm:text-2xl font-bold text-blue-900 break-all">{payment.mobileNumber}</p>
                     <p className="text-xs sm:text-sm text-blue-600 mt-2">via M-Pesa (Safaricom)</p>
                   </div>
                   <div className="flex items-center justify-center gap-2 text-sm sm:text-base text-gray-600">
@@ -1038,7 +726,7 @@ const POS = () => {
             </div>
             
             <div className="bg-gray-50 rounded-lg p-3 sm:p-4">
-              {paymentMethod === 'cash+mpesa' ? (
+              {payment.paymentMethod === 'cash+mpesa' ? (
                 <>
                   <div className="flex justify-between text-xs sm:text-sm text-gray-600 mb-2">
                     <span>Total Amount:</span>
@@ -1046,11 +734,11 @@ const POS = () => {
                   </div>
                   <div className="flex justify-between text-xs sm:text-sm text-blue-700 mb-2">
                     <span>Cash Paid:</span>
-                    <span className="font-semibold">{CURRENCY_SYMBOL} {parseFloat(splitCashAmount || 0).toFixed(2)}</span>
+                    <span className="font-semibold">{CURRENCY_SYMBOL} {parseFloat(payment.splitCashAmount || 0).toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between text-xs sm:text-sm text-green-700 mb-2 font-bold border-t pt-2">
                     <span>Mpesa Amount:</span>
-                    <span>{CURRENCY_SYMBOL} {parseFloat(splitMobileAmount || 0).toFixed(2)}</span>
+                    <span>{CURRENCY_SYMBOL} {parseFloat(payment.splitMobileAmount || 0).toFixed(2)}</span>
                   </div>
                 </>
               ) : (
@@ -1122,7 +810,13 @@ const POS = () => {
                 </div>
                 <div className="flex justify-between text-sm text-gray-600 pt-2 border-t mt-2">
                   <span>Payment Method:</span>
-                  <span className="capitalize">{receipt.paymentMethod === 'cash+mpesa' ? 'Cash + Mpesa' : receipt.paymentMethod}</span>
+                  <span className="capitalize">
+                    {receipt.paymentMethod === 'cash+mpesa' ? 'Cash + Mpesa' : 
+                     receipt.paymentMethod === 'bnpl' ? 'Buy Now, Pay Later' :
+                     receipt.paymentMethod === 'store-credit' ? 'Store Credit' :
+                     receipt.paymentMethod === 'loyalty-card' ? 'Loyalty Card' :
+                     receipt.paymentMethod}
+                  </span>
                 </div>
                 {receipt.paymentMethod === 'mobile' && (
                   <>
@@ -1171,6 +865,114 @@ const POS = () => {
                     <div className="flex justify-between text-sm">
                       <span>Phone Number:</span>
                       <span>{receipt.mobileNumber}</span>
+                    </div>
+                  </>
+                )}
+                {receipt.paymentMethod === 'bnpl' && (
+                  <>
+                    {receipt.bnplCustomerName && (
+                      <div className="bg-orange-50 border border-orange-200 rounded-lg p-2 mt-2 mb-2">
+                        <div className="flex justify-between text-sm">
+                          <span className="font-semibold text-orange-700">Customer:</span>
+                          <span className="font-bold text-orange-700">{receipt.bnplCustomerName}</span>
+                        </div>
+                      </div>
+                    )}
+                    <div className="bg-orange-50 border border-orange-200 rounded-lg p-2 mt-2 space-y-2">
+                      {receipt.bnplDownPayment > 0 && (
+                        <div className="flex justify-between text-sm">
+                          <span className="font-semibold text-orange-700">Down Payment:</span>
+                          <span className="font-bold text-orange-700">{CURRENCY_SYMBOL} {(receipt.bnplDownPayment || 0).toFixed(2)}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between text-sm">
+                        <span className="font-semibold text-orange-700">Installments:</span>
+                        <span className="font-bold text-orange-700">{receipt.bnplInstallments || 3} payments</span>
+                      </div>
+                      {(() => {
+                        const total = receipt.total;
+                        const downPayment = receipt.bnplDownPayment || 0;
+                        const remaining = total - downPayment;
+                        const installmentAmount = remaining / (receipt.bnplInstallments || 3);
+                        const intervalText = receipt.bnplInterval === 1 ? 'week' : receipt.bnplInterval === 2 ? '2 weeks' : 'month';
+                        return (
+                          <>
+                            <div className="flex justify-between text-sm">
+                              <span className="font-semibold text-orange-700">Installment Amount:</span>
+                              <span className="font-bold text-orange-700">{CURRENCY_SYMBOL} {installmentAmount.toFixed(2)}</span>
+                            </div>
+                            <div className="flex justify-between text-sm">
+                              <span className="font-semibold text-orange-700">Payment Interval:</span>
+                              <span className="font-bold text-orange-700">Every {intervalText}</span>
+                            </div>
+                          </>
+                        );
+                      })()}
+                      <div className="border-t border-orange-300 pt-2 flex justify-between text-sm">
+                        <span className="font-bold">Remaining Balance:</span>
+                        <span className="font-bold">{CURRENCY_SYMBOL} {(receipt.total - (receipt.bnplDownPayment || 0)).toFixed(2)}</span>
+                      </div>
+                    </div>
+                  </>
+                )}
+                {receipt.paymentMethod === 'store-credit' && (
+                  <>
+                    {receipt.storeCreditCustomerName && (
+                      <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-2 mt-2 mb-2">
+                        <div className="flex justify-between text-sm">
+                          <span className="font-semibold text-indigo-700">Customer:</span>
+                          <span className="font-bold text-indigo-700">{receipt.storeCreditCustomerName}</span>
+                        </div>
+                      </div>
+                    )}
+                    <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-2 mt-2 space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <span className="font-semibold text-indigo-700">Store Credit Used:</span>
+                        <span className="font-bold text-indigo-700">{CURRENCY_SYMBOL} {(receipt.storeCreditUsed || 0).toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="font-semibold text-indigo-700">Previous Balance:</span>
+                        <span className="font-bold text-indigo-700">{CURRENCY_SYMBOL} {(receipt.storeCreditBalance || 0).toFixed(2)}</span>
+                      </div>
+                      <div className="border-t border-indigo-300 pt-2 flex justify-between text-sm">
+                        <span className="font-bold">Remaining Credit:</span>
+                        <span className="font-bold">{CURRENCY_SYMBOL} {((receipt.storeCreditBalance || 0) - (receipt.storeCreditUsed || 0)).toFixed(2)}</span>
+                      </div>
+                    </div>
+                  </>
+                )}
+                {receipt.paymentMethod === 'loyalty-card' && (
+                  <>
+                    <div className="bg-pink-50 border border-pink-200 rounded-lg p-2 mt-2 space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <span className="font-semibold text-pink-700">Customer:</span>
+                        <span className="font-bold text-pink-700">{receipt.loyaltyCustomerName || 'N/A'}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="font-semibold text-pink-700">Card Number:</span>
+                        <span className="font-bold text-pink-700">{receipt.loyaltyCardNumber || 'N/A'}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="font-semibold text-pink-700">Points Used:</span>
+                        <span className="font-bold text-pink-700">{(receipt.loyaltyPointsUsed || 0).toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="font-semibold text-pink-700">Points Value:</span>
+                        <span className="font-bold text-pink-700">{CURRENCY_SYMBOL} {((receipt.loyaltyPointsUsed || 0) * (receipt.loyaltyPointsRate || 1)).toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="font-semibold text-pink-700">Previous Balance:</span>
+                        <span className="font-bold text-pink-700">{(receipt.loyaltyPointsBalance || 0).toLocaleString()} points</span>
+                      </div>
+                      <div className="border-t border-pink-300 pt-2 flex justify-between text-sm">
+                        <span className="font-bold">Remaining Points:</span>
+                        <span className="font-bold">{((receipt.loyaltyPointsBalance || 0) - (receipt.loyaltyPointsUsed || 0)).toLocaleString()}</span>
+                      </div>
+                      {((receipt.loyaltyPointsUsed || 0) * (receipt.loyaltyPointsRate || 1)) < receipt.total && (
+                        <div className="text-xs text-orange-600 pt-1 border-t border-pink-300">
+                          Remaining balance: {CURRENCY_SYMBOL} {(receipt.total - ((receipt.loyaltyPointsUsed || 0) * (receipt.loyaltyPointsRate || 1))).toFixed(2)} (to be paid separately)
+                        </div>
+                      )}
                     </div>
                   </>
                 )}

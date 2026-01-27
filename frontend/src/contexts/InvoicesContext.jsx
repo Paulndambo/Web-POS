@@ -101,7 +101,7 @@ export const InvoicesProvider = ({ children }) => {
     // Recalculate totals
     const subtotal = updatedItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
     const tax = Math.round(subtotal * 0.08 * 100) / 100;
-    const total = Math.round((subtotal + tax) * 100) / 100;
+    const total = Math.ceil(subtotal + tax); // Round total upwards to whole number (no cents)
 
     return updateInvoice(invoiceId, {
       items: updatedItems,
@@ -120,7 +120,7 @@ export const InvoicesProvider = ({ children }) => {
     // Recalculate totals
     const subtotal = updatedItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
     const tax = Math.round(subtotal * 0.08 * 100) / 100;
-    const total = Math.round((subtotal + tax) * 100) / 100;
+    const total = Math.ceil(subtotal + tax); // Round total upwards to whole number (no cents)
 
     return updateInvoice(invoiceId, {
       items: updatedItems,
@@ -145,7 +145,7 @@ export const InvoicesProvider = ({ children }) => {
     // Recalculate totals
     const subtotal = updatedItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
     const tax = Math.round(subtotal * 0.08 * 100) / 100;
-    const total = Math.round((subtotal + tax) * 100) / 100;
+    const total = Math.ceil(subtotal + tax); // Round total upwards to whole number (no cents)
 
     return updateInvoice(invoiceId, {
       items: updatedItems,

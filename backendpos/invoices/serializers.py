@@ -14,7 +14,7 @@ class InvoiceItemSerializer(serializers.ModelSerializer):
     
 
     def get_unit_price(self, obj):
-        return obj.item.price
+        return obj.item.selling_price
 
 
 

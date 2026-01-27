@@ -55,9 +55,10 @@ export const OrdersProvider = ({ children }) => {
         // Recalculate totals if items changed
         if (updated.items) {
           const roundMoney = (value) => Math.round(value * 100) / 100;
+          const roundMoneyUpToWhole = (value) => Math.ceil(value); // Round total upwards to whole number (no cents)
           updated.subtotal = roundMoney(updated.items.reduce((sum, item) => sum + (item.price * item.quantity), 0));
           updated.tax = roundMoney(updated.subtotal * 0.08);
-          updated.total = roundMoney(updated.subtotal + updated.tax);
+          updated.total = roundMoneyUpToWhole(updated.subtotal + updated.tax);
         }
         return updated;
       }

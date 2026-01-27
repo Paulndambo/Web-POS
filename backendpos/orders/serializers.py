@@ -17,7 +17,7 @@ class OrderItemSerializer(serializers.ModelSerializer):
     
 
     def get_unit_price(self, obj):
-        return obj.inventory_item.price
+        return obj.inventory_item.selling_price if obj.inventory_item else obj.menu_item.price
 
 
 

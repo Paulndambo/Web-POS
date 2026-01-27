@@ -115,7 +115,7 @@ class InvoiceItemUpdateAPIView(generics.CreateAPIView):
                 invoice_item = InvoiceItem.objects.get(id=serializer.validated_data["invoice_item"])
                 invoice_item.quantity += int(serializer.validated_data["amount"])
                 invoice_item.save()
-                invoice_item.item_total = Decimal(invoice_item.quantity) * Decimal(invoice_item.item.price)
+                invoice_item.item_total = Decimal(invoice_item.quantity) * Decimal(invoice_item.item.selling_price)
                 invoice_item.save()
 
                 invoice_item.refresh_from_db()
@@ -128,7 +128,7 @@ class InvoiceItemUpdateAPIView(generics.CreateAPIView):
                 invoice_item = InvoiceItem.objects.get(id=serializer.validated_data["invoice_item"])
                 invoice_item.quantity -= int(serializer.validated_data["amount"])
                 invoice_item.save()
-                invoice_item.item_total = Decimal(invoice_item.quantity) * Decimal(invoice_item.item.price)
+                invoice_item.item_total = Decimal(invoice_item.quantity) * Decimal(invoice_item.item.selling_price)
                 invoice_item.save()
 
                 invoice_item.refresh_from_db()

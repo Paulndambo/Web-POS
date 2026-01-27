@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Layout from '../components/Layout.jsx';
 import { Package, Search, RefreshCw, AlertCircle, Plus, Edit, TrendingUp, TrendingDown, X, Save, ChevronLeft, ChevronRight } from 'lucide-react';
 import { CURRENCY_SYMBOL } from '../config/currency.js';
-import { showSuccess, showError, showInfo } from '../utils/toast.js';
+import { showSuccess, showError, showInfo, showWarning } from '../utils/toast.js';
 import { apiGet, apiPost, apiPut } from '../utils/api.js';
 
 const Inventory = () => {
@@ -20,10 +20,12 @@ const Inventory = () => {
   const [categories, setCategories] = useState([]);
   const [categoriesLoading, setCategoriesLoading] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const [stockUpdating, setStockUpdating] = useState(false);
   const itemsPerPage = 10;
   const [newProduct, setNewProduct] = useState({
     name: '',
-    price: '',
+    buying_price: '',
+    selling_price: '',
     barcode: '',
     category: '',
     stock: '',
@@ -34,7 +36,7 @@ const Inventory = () => {
     try {
       setCategoriesLoading(true);
       // Categories endpoint doesn't require authentication
-      const response = await apiGet('/inventory/categories', false);
+      const response = await apiGet('/inventory/categories');
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -63,7 +65,7 @@ const Inventory = () => {
       // Fetch all pages of products from backend
       while (endpoint) {
         // Inventory endpoint doesn't require authentication
-        const response = await apiGet(endpoint, false);
+        const response = await apiGet(endpoint);
         
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
@@ -75,7 +77,8 @@ const Inventory = () => {
         const transformedProducts = data.results.map(product => ({
           id: product.id,
           name: product.name,
-          price: parseFloat(product.price),
+          buying_price: parseFloat(product.buying_price || 0),
+          selling_price: parseFloat(product.selling_price || 0),
           barcode: product.barcode,
           category: product.category_name || 'Uncategorized',
           categoryId: product.category,
@@ -146,11 +149,12 @@ const Inventory = () => {
         name: newProduct.name,
         barcode: newProduct.barcode,
         quantity: parseInt(newProduct.stock),
-        price: parseFloat(newProduct.price)
+        buying_price: parseFloat(newProduct.buying_price || 0),
+        selling_price: parseFloat(newProduct.selling_price || 0)
       };
 
       // Inventory endpoint doesn't require authentication
-      const response = await apiPost('/inventory/', productData, false);
+      const response = await apiPost('/inventory/', productData);
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -160,7 +164,8 @@ const Inventory = () => {
       setShowAddModal(false);
       setNewProduct({
         name: '',
-        price: '',
+        buying_price: '',
+        selling_price: '',
         barcode: '',
         category: '',
         stock: '',
@@ -179,7 +184,8 @@ const Inventory = () => {
     setSelectedProduct(product);
     setNewProduct({
       name: product.name,
-      price: product.price.toString(),
+      buying_price: product.buying_price.toString(),
+      selling_price: product.selling_price.toString(),
       barcode: product.barcode || '',
       category: product.categoryId ? product.categoryId.toString() : '',
       stock: product.stock.toString(),
@@ -195,11 +201,12 @@ const Inventory = () => {
         name: newProduct.name,
         barcode: newProduct.barcode,
         quantity: parseInt(newProduct.stock),
-        price: parseFloat(newProduct.price)
+        buying_price: parseFloat(newProduct.buying_price || 0),
+        selling_price: parseFloat(newProduct.selling_price || 0)
       };
 
       // Inventory endpoint doesn't require authentication
-      const response = await apiPut(`/inventory/${selectedProduct.id}/details/`, productData, false);
+      const response = await apiPut(`/inventory/${selectedProduct.id}/details/`, productData);
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -223,12 +230,45 @@ const Inventory = () => {
     setShowRestockModal(true);
   };
 
-  const handleConfirmRestock = () => {
-    // Dummy action - just show info
-    showInfo(`${stockAmount} units would be added to "${selectedProduct.name}". New stock: ${parseInt(selectedProduct.stock) + parseInt(stockAmount)}`);
-    setShowRestockModal(false);
-    setSelectedProduct(null);
-    setStockAmount('');
+  const handleConfirmRestock = async () => {
+    if (!stockAmount || parseInt(stockAmount) <= 0) {
+      showWarning('Please enter a valid quantity');
+      return;
+    }
+
+    setStockUpdating(true);
+
+    try {
+      const stockData = {
+        inventory_item_id: selectedProduct.id,
+        action_type: 'Add Stock',
+        quantity: parseInt(stockAmount)
+      };
+
+      console.log('Sending restock data:', stockData);
+
+      const response = await apiPost('/inventory/update-stock-item/', stockData);
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('Backend error response:', errorData);
+        const errorMessage = errorData.action_type || errorData.acion_type || errorData.detail || `HTTP error! status: ${response.status}`;
+        throw new Error(Array.isArray(errorMessage) ? errorMessage.join(', ') : errorMessage);
+      }
+
+      showSuccess(`${stockAmount} units added to "${selectedProduct.name}"`);
+      setShowRestockModal(false);
+      setSelectedProduct(null);
+      setStockAmount('');
+      
+      // Refresh the products list
+      fetchProducts();
+    } catch (error) {
+      console.error('Error restocking product:', error);
+      showError(`Failed to restock product: ${error.message}`);
+    } finally {
+      setStockUpdating(false);
+    }
   };
 
   const handleRemoveStock = (product) => {
@@ -237,13 +277,50 @@ const Inventory = () => {
     setShowRemoveStockModal(true);
   };
 
-  const handleConfirmRemoveStock = () => {
-    // Dummy action - just show info
-    const newStock = Math.max(0, parseInt(selectedProduct.stock) - parseInt(stockAmount));
-    showInfo(`${stockAmount} units would be removed from "${selectedProduct.name}". New stock: ${newStock}`);
-    setShowRemoveStockModal(false);
-    setSelectedProduct(null);
-    setStockAmount('');
+  const handleConfirmRemoveStock = async () => {
+    if (!stockAmount || parseInt(stockAmount) <= 0) {
+      showWarning('Please enter a valid quantity');
+      return;
+    }
+
+    if (parseInt(stockAmount) > selectedProduct.stock) {
+      showWarning('Cannot remove more stock than available');
+      return;
+    }
+
+    setStockUpdating(true);
+
+    try {
+      const stockData = {
+        inventory_item_id: selectedProduct.id,
+        action_type: 'Remove Stock',
+        quantity: parseInt(stockAmount)
+      };
+
+      console.log('Sending remove stock data:', stockData);
+
+      const response = await apiPost('/inventory/update-stock-item/', stockData);
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('Backend error response:', errorData);
+        const errorMessage = errorData.action_type || errorData.acion_type || errorData.detail || `HTTP error! status: ${response.status}`;
+        throw new Error(Array.isArray(errorMessage) ? errorMessage.join(', ') : errorMessage);
+      }
+
+      showSuccess(`${stockAmount} units removed from "${selectedProduct.name}"`);
+      setShowRemoveStockModal(false);
+      setSelectedProduct(null);
+      setStockAmount('');
+      
+      // Refresh the products list
+      fetchProducts();
+    } catch (error) {
+      console.error('Error removing stock:', error);
+      showError(`Failed to remove stock: ${error.message}`);
+    } finally {
+      setStockUpdating(false);
+    }
   };
 
   const handleNextPage = () => {
@@ -364,7 +441,10 @@ const Inventory = () => {
                           Category
                         </th>
                         <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                          Price
+                          Buying Price
+                        </th>
+                        <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                          Selling Price
                         </th>
                         <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                           Stock
@@ -399,8 +479,13 @@ const Inventory = () => {
                               <div className="text-sm text-gray-800">{product.category}</div>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="text-sm font-semibold text-gray-600">
+                                {CURRENCY_SYMBOL} {product.buying_price.toFixed(2)}
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
                               <div className="text-sm font-semibold text-blue-600">
-                                {CURRENCY_SYMBOL} {product.price.toFixed(2)}
+                                {CURRENCY_SYMBOL} {product.selling_price.toFixed(2)}
                               </div>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
@@ -476,7 +561,7 @@ const Inventory = () => {
         {/* Add Stock Item Modal */}
         {showAddModal && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-y-auto">
-            <div className="bg-white rounded-lg p-6 max-w-md w-full my-auto max-h-[95vh] overflow-y-auto">
+            <div className="bg-white rounded-lg p-6 max-w-2xl w-full my-auto max-h-[95vh] overflow-y-auto">
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-2xl font-bold text-gray-800">Add New Stock Item</h2>
                 <button
@@ -501,55 +586,73 @@ const Inventory = () => {
                   />
                 </div>
 
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Price *
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={newProduct.price}
-                    onChange={(e) => setNewProduct({ ...newProduct, price: e.target.value })}
-                    className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
-                    required
-                  />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Buying Price *
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={newProduct.buying_price}
+                      onChange={(e) => setNewProduct({ ...newProduct, buying_price: e.target.value })}
+                      className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Selling Price *
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={newProduct.selling_price}
+                      onChange={(e) => setNewProduct({ ...newProduct, selling_price: e.target.value })}
+                      className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
+                      required
+                    />
+                  </div>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Barcode
-                  </label>
-                  <input
-                    type="text"
-                    value={newProduct.barcode}
-                    onChange={(e) => setNewProduct({ ...newProduct, barcode: e.target.value })}
-                    className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
-                  />
-                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Barcode
+                    </label>
+                    <input
+                      type="text"
+                      value={newProduct.barcode}
+                      onChange={(e) => setNewProduct({ ...newProduct, barcode: e.target.value })}
+                      className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
+                    />
+                  </div>
 
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Category *
-                  </label>
-                  <select
-                    value={newProduct.category}
-                    onChange={(e) => setNewProduct({ ...newProduct, category: e.target.value })}
-                    className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
-                    required
-                    disabled={categoriesLoading}
-                  >
-                    <option value="">
-                      {categoriesLoading ? 'Loading categories...' : 'Select a category'}
-                    </option>
-                    {categories.map((cat) => (
-                      <option key={cat.id} value={cat.id}>
-                        {cat.name}
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Category *
+                    </label>
+                    <select
+                      value={newProduct.category}
+                      onChange={(e) => setNewProduct({ ...newProduct, category: e.target.value })}
+                      className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
+                      required
+                      disabled={categoriesLoading}
+                    >
+                      <option value="">
+                        {categoriesLoading ? 'Loading categories...' : 'Select a category'}
                       </option>
-                    ))}
-                  </select>
-                  {!categoriesLoading && categories.length === 0 && (
-                    <p className="text-xs text-red-600 mt-1">No categories available. Please add categories first.</p>
-                  )}
+                      {categories.map((cat) => (
+                        <option key={cat.id} value={cat.id}>
+                          {cat.name}
+                        </option>
+                      ))}
+                    </select>
+                    {!categoriesLoading && categories.length === 0 && (
+                      <p className="text-xs text-red-600 mt-1">No categories available. Please add categories first.</p>
+                    )}
+                  </div>
                 </div>
 
                 <div>
@@ -601,7 +704,7 @@ const Inventory = () => {
         {/* Edit Product Modal */}
         {showEditModal && selectedProduct && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-y-auto">
-            <div className="bg-white rounded-lg p-6 max-w-md w-full my-auto max-h-[95vh] overflow-y-auto">
+            <div className="bg-white rounded-lg p-6 max-w-2xl w-full my-auto max-h-[95vh] overflow-y-auto">
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-2xl font-bold text-gray-800">Edit Product</h2>
                 <button
@@ -626,55 +729,73 @@ const Inventory = () => {
                   />
                 </div>
 
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Price *
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={newProduct.price}
-                    onChange={(e) => setNewProduct({ ...newProduct, price: e.target.value })}
-                    className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
-                    required
-                  />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Buying Price *
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={newProduct.buying_price}
+                      onChange={(e) => setNewProduct({ ...newProduct, buying_price: e.target.value })}
+                      className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Selling Price *
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={newProduct.selling_price}
+                      onChange={(e) => setNewProduct({ ...newProduct, selling_price: e.target.value })}
+                      className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
+                      required
+                    />
+                  </div>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Barcode
-                  </label>
-                  <input
-                    type="text"
-                    value={newProduct.barcode}
-                    onChange={(e) => setNewProduct({ ...newProduct, barcode: e.target.value })}
-                    className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
-                  />
-                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Barcode
+                    </label>
+                    <input
+                      type="text"
+                      value={newProduct.barcode}
+                      onChange={(e) => setNewProduct({ ...newProduct, barcode: e.target.value })}
+                      className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
+                    />
+                  </div>
 
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Category *
-                  </label>
-                  <select
-                    value={newProduct.category}
-                    onChange={(e) => setNewProduct({ ...newProduct, category: e.target.value })}
-                    className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
-                    required
-                    disabled={categoriesLoading}
-                  >
-                    <option value="">
-                      {categoriesLoading ? 'Loading categories...' : 'Select a category'}
-                    </option>
-                    {categories.map((cat) => (
-                      <option key={cat.id} value={cat.id}>
-                        {cat.name}
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Category *
+                    </label>
+                    <select
+                      value={newProduct.category}
+                      onChange={(e) => setNewProduct({ ...newProduct, category: e.target.value })}
+                      className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
+                      required
+                      disabled={categoriesLoading}
+                    >
+                      <option value="">
+                        {categoriesLoading ? 'Loading categories...' : 'Select a category'}
                       </option>
-                    ))}
-                  </select>
-                  {!categoriesLoading && categories.length === 0 && (
-                    <p className="text-xs text-red-600 mt-1">No categories available. Please add categories first.</p>
-                  )}
+                      {categories.map((cat) => (
+                        <option key={cat.id} value={cat.id}>
+                          {cat.name}
+                        </option>
+                      ))}
+                    </select>
+                    {!categoriesLoading && categories.length === 0 && (
+                      <p className="text-xs text-red-600 mt-1">No categories available. Please add categories first.</p>
+                    )}
+                  </div>
                 </div>
 
                 <div>
@@ -771,11 +892,20 @@ const Inventory = () => {
                 </button>
                 <button
                   onClick={handleConfirmRestock}
-                  disabled={!stockAmount || parseInt(stockAmount) <= 0}
+                  disabled={!stockAmount || parseInt(stockAmount) <= 0 || stockUpdating}
                   className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-green-300 text-white py-2 rounded-lg font-semibold flex items-center justify-center gap-2 transition"
                 >
-                  <TrendingUp size={18} />
-                  Confirm Restock
+                  {stockUpdating ? (
+                    <>
+                      <RefreshCw size={18} className="animate-spin" />
+                      Updating...
+                    </>
+                  ) : (
+                    <>
+                      <TrendingUp size={18} />
+                      Confirm Restock
+                    </>
+                  )}
                 </button>
               </div>
             </div>
@@ -831,11 +961,20 @@ const Inventory = () => {
                 </button>
                 <button
                   onClick={handleConfirmRemoveStock}
-                  disabled={!stockAmount || parseInt(stockAmount) <= 0 || parseInt(stockAmount) > selectedProduct.stock}
+                  disabled={!stockAmount || parseInt(stockAmount) <= 0 || parseInt(stockAmount) > selectedProduct.stock || stockUpdating}
                   className="flex-1 bg-orange-600 hover:bg-orange-700 disabled:bg-orange-300 text-white py-2 rounded-lg font-semibold flex items-center justify-center gap-2 transition"
                 >
-                  <TrendingDown size={18} />
-                  Confirm Remove
+                  {stockUpdating ? (
+                    <>
+                      <RefreshCw size={18} className="animate-spin" />
+                      Updating...
+                    </>
+                  ) : (
+                    <>
+                      <TrendingDown size={18} />
+                      Confirm Remove
+                    </>
+                  )}
                 </button>
               </div>
             </div>

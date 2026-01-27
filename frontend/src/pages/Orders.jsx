@@ -1,15 +1,19 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext.jsx';
+import { useCustomers } from '../contexts/CustomersContext.jsx';
 import { useNavigate } from 'react-router-dom';
 import Layout from '../components/Layout.jsx';
 import { CURRENCY_SYMBOL } from '../config/currency.js';
 import { showWarning, showError, showSuccess } from '../utils/toast.js';
 import { apiGet, apiPost } from '../utils/api.js';
+import { usePayment } from '../hooks/usePayment.js';
+import PaymentModal from '../components/PaymentModal.jsx';
 
 import { Receipt, DollarSign, Calendar, Search, Filter, Plus, CheckCircle, Clock, AlertCircle, Printer, Banknote, Smartphone, Wallet, X, Eye, RefreshCw } from 'lucide-react';
 
 const Orders = () => {
   const { user, getAccessToken } = useAuth();
+  const { customers } = useCustomers();
   const navigate = useNavigate();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -17,14 +21,20 @@ const Orders = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState('newest');
   const [statusFilter, setStatusFilter] = useState('all'); // all, pending, paid
-  const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
-  const [paymentMethod, setPaymentMethod] = useState('');
-  const [paymentReference, setPaymentReference] = useState('');
-  const [amountReceived, setAmountReceived] = useState('');
-  const [splitCashAmount, setSplitCashAmount] = useState('');
-  const [splitMobileAmount, setSplitMobileAmount] = useState('');
-  const [mobileNumber, setMobileNumber] = useState('');
+
+  // Use the reusable payment hook
+  const paymentCompleteRef = useRef(null);
+  
+  const payment = usePayment({
+    totalAmount: selectedOrder?.balance || 0,
+    onPaymentComplete: (paymentData) => {
+      if (paymentCompleteRef.current) {
+        paymentCompleteRef.current(paymentData);
+      }
+    },
+    customers: customers || []
+  });
 
   const fetchOrders = async () => {
     try {
@@ -107,78 +117,34 @@ const Orders = () => {
     return date.toLocaleString();
   };
 
-  const openPaymentModal = (order) => {
-    setSelectedOrder(order);
-    setPaymentMethod('');
-    setPaymentReference('');
-    setAmountReceived('');
-    setSplitCashAmount('');
-    setSplitMobileAmount('');
-    setShowPaymentModal(true);
-  };
-
-  const handleConfirmPayment = async () => {
-    if (!paymentMethod) {
-      showWarning('Please select a payment method');
-      return;
-    }
-
+  // Complete transaction function
+  const completeTransaction = async (paymentData) => {
     if (!selectedOrder) return;
 
-    // Validate mobile number for mobile payments
-    if ((paymentMethod === 'mobile' || paymentMethod === 'cash+mpesa') && !mobileNumber) {
-      showWarning('Please enter mobile number for mobile payment');
-      return;
-    }
-
-    let paymentData = {
+    const backendPaymentData = {
       order: selectedOrder.id,
-      paymentMethod: paymentMethod,
-      mobileNumber: mobileNumber || '',
-      mobileNetwork: (paymentMethod === 'mobile' || paymentMethod === 'cash+mpesa') ? 'Safaricom' : '',
-      splitCashAmount: 0,
-      splitMobileAmount: 0,
+      paymentMethod: paymentData.paymentMethod,
+      mobileNumber: (paymentData.paymentMethod === 'mobile' || paymentData.paymentMethod === 'cash+mpesa') ? (paymentData.mobileNumber || '') : '',
+      mobileNetwork: (paymentData.paymentMethod === 'mobile' || paymentData.paymentMethod === 'cash+mpesa') ? 'Safaricom' : '',
+      splitCashAmount: paymentData.paymentMethod === 'cash+mpesa' ? (paymentData.splitCashAmount || 0) : 0,
+      splitMobileAmount: paymentData.paymentMethod === 'cash+mpesa' ? (paymentData.splitMobileAmount || 0) : 0,
       date: new Date().toISOString().split('T')[0],
-      change: 0,
-      status: 'Paid'
+      change: paymentData.change || 0,
+      status: 'Paid',
+      amountReceived: paymentData.amountReceived || (selectedOrder.balance || 0),
+      // Include BNPL, Store Credit, and Loyalty Card data if present
+      bnplDownPayment: paymentData.bnplDownPayment,
+      bnplInstallments: paymentData.bnplInstallments,
+      bnplInterval: paymentData.bnplInterval,
+      bnplCustomerId: paymentData.bnplCustomerId,
+      storeCreditUsed: paymentData.storeCreditUsed,
+      storeCreditCustomerId: paymentData.storeCreditCustomerId,
+      loyaltyPointsUsed: paymentData.loyaltyPointsUsed,
+      loyaltyCardNumber: paymentData.loyaltyCardNumber
     };
 
-    const balanceDue = selectedOrder.balance || 0;
-
-    if (paymentMethod === 'cash') {
-      const received = parseFloat(amountReceived) || balanceDue;
-      if (received < balanceDue) {
-        showWarning('Amount received cannot be less than balance due');
-        return;
-      }
-      paymentData.amountReceived = received;
-      paymentData.change = received - balanceDue;
-    } else if (paymentMethod === 'mobile') {
-      const received = parseFloat(amountReceived) || balanceDue;
-      if (received < balanceDue) {
-        showWarning('Amount received cannot be less than balance due');
-        return;
-      }
-      paymentData.amountReceived = received;
-      paymentData.change = received - balanceDue;
-    } else if (paymentMethod === 'cash+mpesa') {
-      const cashAmount = parseFloat(splitCashAmount || 0);
-      const mobileAmount = parseFloat(splitMobileAmount || 0);
-
-      if (Math.abs((cashAmount + mobileAmount) - balanceDue) > 0.01) {
-        showWarning(`Payment amounts don't match balance due. Cash: ${CURRENCY_SYMBOL} ${cashAmount.toFixed(2)} + Mpesa: ${CURRENCY_SYMBOL} ${mobileAmount.toFixed(2)} = ${CURRENCY_SYMBOL} ${(cashAmount + mobileAmount).toFixed(2)}, but balance due is ${CURRENCY_SYMBOL} ${balanceDue.toFixed(2)}`);
-        return;
-      }
-
-      paymentData.splitCashAmount = cashAmount;
-      paymentData.splitMobileAmount = mobileAmount;
-      paymentData.amountReceived = balanceDue;
-    } else {
-      paymentData.amountReceived = balanceDue;
-    }
-
     try {
-      const response = await apiPost('/orders/pay-order/', paymentData);
+      const response = await apiPost('/orders/pay-order/', backendPaymentData);
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -190,19 +156,49 @@ const Orders = () => {
       // Refresh orders list
       await fetchOrders();
       
-      // Close modal and reset form
-      setShowPaymentModal(false);
+      // Reset payment state
+      payment.resetPayment();
       setSelectedOrder(null);
-      setPaymentMethod('');
-      setPaymentReference('');
-      setAmountReceived('');
-      setSplitCashAmount('');
-      setSplitMobileAmount('');
-      setMobileNumber('');
     } catch (error) {
       console.error('Error confirming payment:', error);
       showError(error.message || 'Failed to confirm payment');
     }
+  };
+
+  // Set the ref so completeTransaction can be called
+  paymentCompleteRef.current = completeTransaction;
+
+  // Process payment using the hook
+  const handleProcessPayment = () => {
+    const result = payment.processPayment();
+    if (result.success) {
+      // For mobile payments, validate phone number
+      if (payment.paymentMethod === 'mobile' || payment.paymentMethod === 'cash+mpesa') {
+        const validation = payment.validatePhoneNumber(payment.mobileNumber);
+        if (validation.valid) {
+          payment.setMobileNumber(validation.cleaned);
+          // Call completeTransaction directly with the payment data
+          if (paymentCompleteRef.current) {
+            paymentCompleteRef.current(result.paymentData);
+          }
+        } else {
+          showWarning(validation.error);
+        }
+      } else {
+        // For other payment methods, complete immediately
+        // Call completeTransaction directly with the payment data
+        if (paymentCompleteRef.current) {
+          paymentCompleteRef.current(result.paymentData);
+        }
+      }
+    } else {
+      showWarning(result.error);
+    }
+  };
+
+  const openPaymentModal = (order) => {
+    setSelectedOrder(order);
+    payment.openPayment();
   };
 
   const generateReceiptHTML = (order) => {
@@ -537,300 +533,110 @@ const Orders = () => {
             )}
           </div>
         ) : (
-          <div className="space-y-4">
-            {filteredOrders.map((order) => (
-              <div 
-                key={order.id} 
-                className={`bg-white rounded-xl shadow-md hover:shadow-lg transition p-4 sm:p-6 border-l-4 ${
-                  order.status === 'paid' ? 'border-green-500' : 'border-yellow-500'
-                }`}
-              >
-                <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-                  <div className="flex-1 min-w-0">
-                    {/* Header Row */}
-                    <div className="flex flex-wrap items-center gap-2 sm:gap-4 mb-3">
-                      <div className="bg-blue-100 text-blue-700 px-3 py-1.5 rounded-lg font-semibold text-sm sm:text-base">
-                        Receipt #{order.receiptNo}
-                      </div>
-                      {order.tableNumber && (
-                        <div className="bg-purple-100 text-purple-700 px-3 py-1.5 rounded-lg font-semibold text-xs sm:text-sm">
-                          Table: {order.tableNumber}
+          <div className="bg-white rounded-xl shadow-md overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50 border-b border-gray-200">
+                  <tr>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                      Receipt #
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                      Date
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                      Status
+                    </th>
+                    <th className="px-6 py-4 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                      Total Amount
+                    </th>
+                    <th className="px-6 py-4 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {filteredOrders.map((order) => (
+                    <tr key={order.id} className="hover:bg-gray-50 transition">
+                      <td className="px-6 py-4">
+                        <div className="font-semibold text-gray-800">#{order.receiptNo}</div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-600 flex items-center gap-1">
+                          <Calendar size={14} />
+                          {formatDate(order.timestamp)}
                         </div>
-                      )}
-                      <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-semibold text-xs sm:text-sm ${
-                        order.status === 'paid' 
-                          ? 'bg-green-100 text-green-700' 
-                          : 'bg-yellow-100 text-yellow-700'
-                      }`}>
-                        {order.status === 'paid' ? (
-                          <CheckCircle size={16} />
-                        ) : (
-                          <Clock size={16} />
-                        )}
-                        {order.status === 'paid' ? 'Paid' : 'Pending'}
-                      </div>
-                      <div className="text-xs sm:text-sm text-gray-600 flex items-center gap-1">
-                        <Calendar size={14} />
-                        {formatDate(order.timestamp)}
-                      </div>
-                    </div>
-                    
-                    {/* Order Details Grid */}
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-3">
-                      <div>
-                        <p className="text-xs text-gray-500 mb-1">Items</p>
-                        <p className="font-semibold text-sm sm:text-base">{order.items_count} item(s)</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-gray-500 mb-1">Seller</p>
-                        <p className="font-semibold text-sm sm:text-base">{order.seller || 'N/A'}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-gray-500 mb-1">Subtotal</p>
-                        <p className="font-semibold text-sm sm:text-base">{CURRENCY_SYMBOL} {order.subtotal.toFixed(2)}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-gray-500 mb-1">Total</p>
-                        <p className="font-semibold text-blue-600 text-base sm:text-lg">{CURRENCY_SYMBOL} {order.total.toFixed(2)}</p>
-                      </div>
-                    </div>
-
-                    {/* Payment Details */}
-                    {order.amountReceived > 0 && (
-                      <div className="mt-2 text-xs sm:text-sm text-gray-600 bg-gray-50 p-2 rounded">
-                        <div>
-                          <span className="font-semibold">Amount Received:</span> {CURRENCY_SYMBOL} {order.amountReceived.toFixed(2)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-semibold text-xs ${
+                          order.status === 'paid' 
+                            ? 'bg-green-100 text-green-700' 
+                            : 'bg-yellow-100 text-yellow-700'
+                        }`}>
+                          {order.status === 'paid' ? (
+                            <CheckCircle size={14} />
+                          ) : (
+                            <Clock size={14} />
+                          )}
+                          {order.status === 'paid' ? 'Paid' : 'Pending'}
                         </div>
-                        {order.change > 0 && (
-                          <div>
-                            <span className="font-semibold">Change:</span> {CURRENCY_SYMBOL} {order.change.toFixed(2)}
-                          </div>
-                        )}
-                        {order.balance > 0 && (
-                          <div className="text-red-600">
-                            <span className="font-semibold">Balance Due:</span> {CURRENCY_SYMBOL} {order.balance.toFixed(2)}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Action Buttons */}
-                  <div className="flex flex-col sm:flex-row lg:flex-col gap-2 flex-shrink-0">
-                    {order.status === 'pending' && (
-                      <button
-                        onClick={() => openPaymentModal(order)}
-                        className="bg-green-600 hover:bg-green-700 text-white px-4 py-2.5 rounded-lg font-semibold text-sm sm:text-base flex items-center justify-center gap-2 transition shadow-md hover:shadow-lg"
-                      >
-                        <CheckCircle size={18} />
-                        Confirm Payment
-                      </button>
-                    )}
-                    <button
-                      onClick={() => printReceipt(order)}
-                      className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2.5 rounded-lg font-semibold text-sm sm:text-base flex items-center justify-center gap-2 transition shadow-md hover:shadow-lg"
-                      title="Print receipt"
-                    >
-                      <Printer size={18} />
-                      Print Receipt
-                    </button>
-                    <button
-                      onClick={() => navigate(`/order/${order.id}`)}
-                      className="bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white px-4 py-3 rounded-lg font-semibold text-base flex items-center justify-center gap-2 transition shadow-md hover:shadow-lg touch-manipulation min-h-[44px]"
-                    >
-                      <Eye size={18} />
-                      <span className="hidden sm:inline">View Details</span>
-                      <span className="sm:hidden">View</span>
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-right">
+                        <div className="font-semibold text-blue-600">{CURRENCY_SYMBOL} {order.total.toFixed(2)}</div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center justify-center gap-2">
+                          {order.status === 'pending' && (
+                            <button
+                              onClick={() => openPaymentModal(order)}
+                              className="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-lg font-semibold text-xs flex items-center gap-1 transition"
+                              title="Confirm Payment"
+                            >
+                              <CheckCircle size={14} />
+                              <span className="hidden sm:inline">Pay</span>
+                            </button>
+                          )}
+                          <button
+                            onClick={() => printReceipt(order)}
+                            className="bg-purple-600 hover:bg-purple-700 text-white px-3 py-1.5 rounded-lg font-semibold text-xs flex items-center gap-1 transition"
+                            title="Print Receipt"
+                          >
+                            <Printer size={14} />
+                            <span className="hidden sm:inline">Print</span>
+                          </button>
+                          <button
+                            onClick={() => navigate(`/order/${order.id}`)}
+                            className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg font-semibold text-xs flex items-center gap-1 transition"
+                            title="View Details"
+                          >
+                            <Eye size={14} />
+                            <span className="hidden sm:inline">View</span>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
         </>
         )}
 
-        {/* Payment Confirmation Modal */}
-        {showPaymentModal && selectedOrder && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-y-auto">
-            <div className="bg-white rounded-lg p-4 sm:p-6 max-w-md w-full my-auto max-h-[95vh] overflow-y-auto">
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-xl sm:text-2xl font-bold">Confirm Payment</h2>
-                <button
-                  onClick={() => setShowPaymentModal(false)}
-                  className="text-gray-500 hover:text-gray-700"
-                >
-                  <X size={24} />
-                </button>
-              </div>
-
-              <div className="mb-4">
-                <p className="text-sm text-gray-600 mb-2">Receipt #{selectedOrder.receiptNo}</p>
-                <p className="text-2xl font-bold text-blue-600">{CURRENCY_SYMBOL} {(selectedOrder.balance || 0).toFixed(2)}</p>
-                <p className="text-xs text-gray-500 mt-1">Balance Due</p>
-              </div>
-
-              <div className="mb-4">
-                <label className="block font-semibold mb-2 text-sm sm:text-base">Payment Method *</label>
-                <div className="grid grid-cols-3 gap-2 sm:gap-3">
-                  <button
-                    onClick={() => setPaymentMethod('cash')}
-                    className={`p-3 sm:p-4 border-2 rounded-lg flex flex-col items-center gap-1 sm:gap-2 transition-colors ${
-                      paymentMethod === 'cash' ? 'border-blue-600 bg-blue-50' : 'border-gray-300 hover:border-gray-400'
-                    }`}
-                  >
-                    <Banknote size={24} />
-                    <span className="text-xs sm:text-sm font-medium">Cash</span>
-                  </button>
-                  <button
-                    onClick={() => setPaymentMethod('mobile')}
-                    className={`p-3 sm:p-4 border-2 rounded-lg flex flex-col items-center gap-1 sm:gap-2 transition-colors ${
-                      paymentMethod === 'mobile' ? 'border-blue-600 bg-blue-50' : 'border-gray-300 hover:border-gray-400'
-                    }`}
-                  >
-                    <Smartphone size={24} />
-                    <span className="text-xs sm:text-sm font-medium">Mpesa</span>
-                  </button>
-                  <button
-                    onClick={() => setPaymentMethod('cash+mpesa')}
-                    className={`p-3 sm:p-4 border-2 rounded-lg flex flex-col items-center gap-1 sm:gap-2 transition-colors relative ${
-                      paymentMethod === 'cash+mpesa' ? 'border-purple-600 bg-purple-50' : 'border-gray-300 hover:border-gray-400'
-                    }`}
-                  >
-                    <div className="relative">
-                      <Banknote size={20} className="absolute -top-1 -left-1 text-blue-600" />
-                      <Smartphone size={20} className="absolute -bottom-1 -right-1 text-green-600" />
-                      <Wallet size={16} className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-purple-600 bg-white rounded-full" />
-                    </div>
-                    <span className="text-xs sm:text-sm font-medium">Cash + Mpesa</span>
-                  </button>
-                </div>
-              </div>
-
-              {paymentMethod === 'cash' && (
-                <div className="mb-4">
-                  <label className="block font-semibold mb-2 text-sm sm:text-base">Amount Received *</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={amountReceived}
-                    onChange={(e) => setAmountReceived(e.target.value)}
-                    placeholder={`${CURRENCY_SYMBOL} ${(selectedOrder.balance || 0).toFixed(2)}`}
-                    className="w-full px-3 sm:px-4 py-2 text-sm sm:text-base border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
-                  />
-                  {amountReceived && parseFloat(amountReceived) >= (selectedOrder.balance || 0) && (
-                    <p className="mt-2 text-sm text-green-600 font-semibold">
-                      Change: {CURRENCY_SYMBOL} {(parseFloat(amountReceived) - (selectedOrder.balance || 0)).toFixed(2)}
-                    </p>
-                  )}
-                </div>
-              )}
-
-              {paymentMethod === 'mobile' && (
-                <div className="mb-4 space-y-3">
-                  <div>
-                    <label className="block font-semibold mb-2 text-sm sm:text-base">Amount Paid *</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={amountReceived}
-                      onChange={(e) => setAmountReceived(e.target.value)}
-                      placeholder={`${CURRENCY_SYMBOL} ${(selectedOrder.balance || 0).toFixed(2)}`}
-                      className="w-full px-3 sm:px-4 py-2 text-sm sm:text-base border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
-                    />
-                    {amountReceived && parseFloat(amountReceived) >= (selectedOrder.balance || 0) && (
-                      <p className="mt-2 text-sm text-green-600 font-semibold">
-                        Change: {CURRENCY_SYMBOL} {(parseFloat(amountReceived) - (selectedOrder.balance || 0)).toFixed(2)}
-                      </p>
-                    )}
-                  </div>
-                  <div>
-                    <label className="block font-semibold mb-2 text-sm sm:text-base">Mobile Number *</label>
-                    <input
-                      type="text"
-                      value={mobileNumber}
-                      onChange={(e) => setMobileNumber(e.target.value)}
-                      placeholder="e.g., 0745491093"
-                      className="w-full px-3 sm:px-4 py-2 text-sm sm:text-base border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
-                    />
-                  </div>
-                </div>
-              )}
-
-              {paymentMethod === 'cash+mpesa' && (
-                <div className="mb-4 space-y-3">
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block font-semibold mb-2 text-sm sm:text-base">Cash Amount</label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        value={splitCashAmount}
-                        onChange={(e) => {
-                          const cashValue = e.target.value;
-                          setSplitCashAmount(cashValue);
-                          const cash = parseFloat(cashValue) || 0;
-                          const balanceDue = selectedOrder.balance || 0;
-                          const remaining = Math.max(0, balanceDue - cash);
-                          setSplitMobileAmount(remaining > 0 ? remaining.toFixed(2) : '0.00');
-                        }}
-                        placeholder="0.00"
-                        className="w-full px-3 sm:px-4 py-2 text-sm sm:text-base border-2 border-blue-300 rounded-lg focus:border-blue-500 focus:outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="block font-semibold mb-2 text-sm sm:text-base">Mpesa Amount</label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        value={splitMobileAmount}
-                        readOnly
-                        className="w-full px-3 sm:px-4 py-2 text-sm sm:text-base border-2 border-green-300 rounded-lg bg-gray-50"
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block font-semibold mb-2 text-sm sm:text-base">Mobile Number *</label>
-                    <input
-                      type="text"
-                      value={mobileNumber}
-                      onChange={(e) => setMobileNumber(e.target.value)}
-                      placeholder="e.g., 0745491093"
-                      className="w-full px-3 sm:px-4 py-2 text-sm sm:text-base border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
-                    />
-                  </div>
-                </div>
-              )}
-
-              <div className="mb-4">
-                <label className="block font-semibold mb-2 text-sm sm:text-base">Payment Reference (Optional)</label>
-                <input
-                  type="text"
-                  value={paymentReference}
-                  onChange={(e) => setPaymentReference(e.target.value)}
-                  placeholder="e.g., Transaction ID, Receipt Number"
-                  className="w-full px-3 sm:px-4 py-2 text-sm sm:text-base border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
-                />
-                <p className="text-xs text-gray-500 mt-1">Enter reference number for tracking (optional)</p>
-              </div>
-
-              <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
-                <button
-                  onClick={() => setShowPaymentModal(false)}
-                  className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-800 py-2.5 sm:py-2 rounded-lg font-semibold text-sm sm:text-base"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleConfirmPayment}
-                  className="flex-1 bg-green-600 hover:bg-green-700 text-white py-2.5 sm:py-2 rounded-lg font-semibold text-sm sm:text-base"
-                >
-                  Confirm Payment
-                </button>
-              </div>
-            </div>
-          </div>
+        {/* Payment Modal */}
+        {selectedOrder && (
+          <PaymentModal
+            show={payment.showPayment}
+            totalAmount={selectedOrder.balance || 0}
+            paymentState={payment}
+            onProcessPayment={handleProcessPayment}
+            onCancel={() => {
+              payment.closePayment();
+              setSelectedOrder(null);
+            }}
+            customers={customers || []}
+          />
         )}
       </div>
     </Layout>

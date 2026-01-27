@@ -29,7 +29,7 @@ const Businesses = () => {
       setError(null);
       
       // Businesses endpoint doesn't require authentication
-      const response = await apiGet('/core/businesses/', false);
+      const response = await apiGet('/core/businesses/');
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -110,7 +110,7 @@ const Businesses = () => {
     try {
       if (editingBusiness) {
         // Update existing business - doesn't require authentication
-        const response = await apiPut(`/core/businesses/${editingBusiness.id}/details/`, formData, false);
+        const response = await apiPut(`/core/businesses/${editingBusiness.id}/details/`, formData);
 
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
@@ -119,7 +119,7 @@ const Businesses = () => {
         showSuccess(`Business "${formData.name}" updated successfully!`);
       } else {
         // Add new business - doesn't require authentication
-        const response = await apiPost('/core/businesses/', formData, false);
+        const response = await apiPost('/core/businesses/', formData);
 
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);

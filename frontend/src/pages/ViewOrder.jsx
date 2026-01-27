@@ -1,10 +1,13 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext.jsx';
+import { useCustomers } from '../contexts/CustomersContext.jsx';
 import Layout from '../components/Layout.jsx';
 import { CURRENCY_SYMBOL } from '../config/currency.js';
 import { showWarning, showError, showSuccess } from '../utils/toast.js';
 import { apiGet, apiPost } from '../utils/api.js';
+import { usePayment } from '../hooks/usePayment.js';
+import PaymentModal from '../components/PaymentModal.jsx';
 import { 
   ArrowLeft, Search, Plus, Minus, X, Printer, DollarSign, 
   Receipt, Edit2, Save, Trash2, ShoppingCart, Banknote, 
@@ -15,6 +18,7 @@ const ViewOrder = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user, getAccessToken } = useAuth();
+  const { customers } = useCustomers();
   
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -25,15 +29,19 @@ const ViewOrder = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [showAddItems, setShowAddItems] = useState(false);
-  const [showPaymentModal, setShowPaymentModal] = useState(false);
+
+  // Use the reusable payment hook
+  const paymentCompleteRef = useRef(null);
   
-  // Payment modal state
-  const [paymentMethod, setPaymentMethod] = useState('');
-  const [paymentReference, setPaymentReference] = useState('');
-  const [amountReceived, setAmountReceived] = useState('');
-  const [splitCashAmount, setSplitCashAmount] = useState('');
-  const [splitMobileAmount, setSplitMobileAmount] = useState('');
-  const [mobileNumber, setMobileNumber] = useState('');
+  const payment = usePayment({
+    totalAmount: order?.balance || 0,
+    onPaymentComplete: (paymentData) => {
+      if (paymentCompleteRef.current) {
+        paymentCompleteRef.current(paymentData);
+      }
+    },
+    customers: customers || []
+  });
 
   // Fetch products from backend API
   useEffect(() => {
@@ -46,7 +54,7 @@ const ViewOrder = () => {
         
         while (endpoint) {
           // Inventory endpoint doesn't require authentication
-          const response = await apiGet(endpoint, false);
+          const response = await apiGet(endpoint);
           
           if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
@@ -57,7 +65,7 @@ const ViewOrder = () => {
           const transformedProducts = data.results.map(product => ({
             id: product.id,
             name: product.name,
-            price: parseFloat(product.price),
+            price: parseFloat(product.selling_price || 0), // Use selling_price for orders
             barcode: product.barcode,
             category: product.category_name,
             stock: product.quantity
@@ -313,69 +321,34 @@ const ViewOrder = () => {
     }
   };
 
-  const handleConfirmPayment = async () => {
-    if (!paymentMethod) {
-      showWarning('Please select a payment method');
-      return;
-    }
+  // Complete transaction function
+  const completeTransaction = async (paymentData) => {
+    if (!order) return;
 
-    // Validate mobile number for mobile payments
-    if ((paymentMethod === 'mobile' || paymentMethod === 'cash+mpesa') && !mobileNumber) {
-      showWarning('Please enter mobile number for mobile payment');
-      return;
-    }
-
-    let paymentData = {
+    const backendPaymentData = {
       order: order.id,
-      paymentMethod: paymentMethod,
-      mobileNumber: mobileNumber || '',
-      mobileNetwork: (paymentMethod === 'mobile' || paymentMethod === 'cash+mpesa') ? 'Safaricom' : '',
-      splitCashAmount: 0,
-      splitMobileAmount: 0,
+      paymentMethod: paymentData.paymentMethod,
+      mobileNumber: (paymentData.paymentMethod === 'mobile' || paymentData.paymentMethod === 'cash+mpesa') ? (paymentData.mobileNumber || '') : '',
+      mobileNetwork: (paymentData.paymentMethod === 'mobile' || paymentData.paymentMethod === 'cash+mpesa') ? 'Safaricom' : '',
+      splitCashAmount: paymentData.paymentMethod === 'cash+mpesa' ? (paymentData.splitCashAmount || 0) : 0,
+      splitMobileAmount: paymentData.paymentMethod === 'cash+mpesa' ? (paymentData.splitMobileAmount || 0) : 0,
       date: new Date().toISOString().split('T')[0],
-      change: 0,
-      status: 'Paid'
+      change: (paymentData.change || 0).toFixed(2),
+      status: 'Paid',
+      amountReceived: paymentData.amountReceived || (order.balance || 0),
+      // Include BNPL, Store Credit, and Loyalty Card data if present
+      bnplDownPayment: paymentData.bnplDownPayment,
+      bnplInstallments: paymentData.bnplInstallments,
+      bnplInterval: paymentData.bnplInterval,
+      bnplCustomerId: paymentData.bnplCustomerId,
+      storeCreditUsed: paymentData.storeCreditUsed,
+      storeCreditCustomerId: paymentData.storeCreditCustomerId,
+      loyaltyPointsUsed: paymentData.loyaltyPointsUsed,
+      loyaltyCardNumber: paymentData.loyaltyCardNumber
     };
 
-    const balanceDue = order.balance || 0;
-
-    if (paymentMethod === 'cash') {
-      const received = parseFloat(amountReceived) || balanceDue;
-      if (received < balanceDue) {
-        showWarning('Amount received cannot be less than balance due');
-        return;
-      }
-      paymentData.amountReceived = received;
-      paymentData.change = received - balanceDue;
-    } else if (paymentMethod === 'mobile') {
-      const received = parseFloat(amountReceived) || balanceDue;
-      if (received < balanceDue) {
-        showWarning('Amount received cannot be less than balance due');
-        return;
-      }
-      paymentData.amountReceived = received;
-      paymentData.change = received - balanceDue;
-    } else if (paymentMethod === 'cash+mpesa') {
-      const cashAmount = parseFloat(splitCashAmount || 0);
-      const mobileAmount = parseFloat(splitMobileAmount || 0);
-
-      if (Math.abs((cashAmount + mobileAmount) - balanceDue) > 0.01) {
-        showWarning(`Payment amounts don't match balance due. Cash: ${CURRENCY_SYMBOL} ${cashAmount.toFixed(2)} + Mpesa: ${CURRENCY_SYMBOL} ${mobileAmount.toFixed(2)} = ${CURRENCY_SYMBOL} ${(cashAmount + mobileAmount).toFixed(2)}, but balance due is ${CURRENCY_SYMBOL} ${balanceDue.toFixed(2)}`);
-        return;
-      }
-
-      paymentData.splitCashAmount = cashAmount;
-      paymentData.splitMobileAmount = mobileAmount;
-      paymentData.amountReceived = balanceDue;
-    } else {
-      paymentData.amountReceived = balanceDue;
-    }
-
-    paymentData.change = paymentData.change.toFixed(2)
-    
-
     try {
-      const response = await apiPost('/orders/pay-order/', paymentData);
+      const response = await apiPost('/orders/pay-order/', backendPaymentData);
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -387,17 +360,42 @@ const ViewOrder = () => {
       // Refresh order details
       await fetchOrderDetails();
       
-      // Close modal and reset form
-      setShowPaymentModal(false);
-      setPaymentMethod('');
-      setPaymentReference('');
-      setAmountReceived('');
-      setSplitCashAmount('');
-      setSplitMobileAmount('');
-      setMobileNumber('');
+      // Reset payment state
+      payment.resetPayment();
     } catch (error) {
       console.error('Error confirming payment:', error);
       showError(error.message || 'Failed to confirm payment');
+    }
+  };
+
+  // Set the ref so completeTransaction can be called
+  paymentCompleteRef.current = completeTransaction;
+
+  // Process payment using the hook
+  const handleProcessPayment = () => {
+    const result = payment.processPayment();
+    if (result.success) {
+      // For mobile payments, validate phone number
+      if (payment.paymentMethod === 'mobile' || payment.paymentMethod === 'cash+mpesa') {
+        const validation = payment.validatePhoneNumber(payment.mobileNumber);
+        if (validation.valid) {
+          payment.setMobileNumber(validation.cleaned);
+          // Call completeTransaction directly with the payment data
+          if (paymentCompleteRef.current) {
+            paymentCompleteRef.current(result.paymentData);
+          }
+        } else {
+          showWarning(validation.error);
+        }
+      } else {
+        // For other payment methods, complete immediately
+        // Call completeTransaction directly with the payment data
+        if (paymentCompleteRef.current) {
+          paymentCompleteRef.current(result.paymentData);
+        }
+      }
+    } else {
+      showWarning(result.error);
     }
   };
 
@@ -577,7 +575,7 @@ const ViewOrder = () => {
             {status === 'pending' && (
               <>
                 <button
-                  onClick={() => setShowPaymentModal(true)}
+                  onClick={() => payment.openPayment()}
                   className="flex-1 sm:flex-none bg-green-600 hover:bg-green-700 active:bg-green-800 text-white px-4 py-3 rounded-lg font-semibold text-base flex items-center justify-center gap-2 touch-manipulation min-h-[44px]"
                 >
                   <CheckCircle size={18} />
@@ -939,200 +937,15 @@ const ViewOrder = () => {
       )}
 
       {/* Payment Modal */}
-      {showPaymentModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-0 sm:p-4 z-50 overflow-y-auto">
-          <div className="bg-white rounded-none sm:rounded-lg p-4 sm:p-6 max-w-md w-full h-full sm:h-auto my-auto max-h-[100vh] sm:max-h-[95vh] overflow-y-auto">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl sm:text-2xl font-bold">Confirm Payment</h2>
-              <button
-                onClick={() => {
-                  setShowPaymentModal(false);
-                  setPaymentMethod('');
-                  setPaymentReference('');
-                  setAmountReceived('');
-                  setSplitCashAmount('');
-                  setSplitMobileAmount('');
-                  setMobileNumber('');
-                }}
-                className="text-gray-500 hover:text-gray-700 active:text-gray-900 p-2 touch-manipulation"
-              >
-                <X size={24} />
-              </button>
-            </div>
-
-            <div className="mb-4">
-              <p className="text-sm text-gray-600 mb-2">Receipt #{order.receiptNo}</p>
-              <p className="text-2xl font-bold text-blue-600">{CURRENCY_SYMBOL} {(order.balance || 0).toFixed(2)}</p>
-              <p className="text-xs text-gray-500 mt-1">Balance Due</p>
-            </div>
-
-            <div className="mb-4">
-              <label className="block font-semibold mb-3 text-base">Payment Method *</label>
-              <div className="grid grid-cols-3 gap-2 sm:gap-3">
-                <button
-                  onClick={() => setPaymentMethod('cash')}
-                  className={`p-4 sm:p-5 border-2 rounded-lg flex flex-col items-center gap-2 transition-colors touch-manipulation min-h-[80px] ${
-                    paymentMethod === 'cash' ? 'border-blue-600 bg-blue-50' : 'border-gray-300 hover:border-gray-400 active:bg-gray-50'
-                  }`}
-                >
-                  <Banknote size={28} className="sm:w-6 sm:h-6" />
-                  <span className="text-sm font-medium">Cash</span>
-                </button>
-                <button
-                  onClick={() => setPaymentMethod('mobile')}
-                  className={`p-4 sm:p-5 border-2 rounded-lg flex flex-col items-center gap-2 transition-colors touch-manipulation min-h-[80px] ${
-                    paymentMethod === 'mobile' ? 'border-blue-600 bg-blue-50' : 'border-gray-300 hover:border-gray-400 active:bg-gray-50'
-                  }`}
-                >
-                  <Smartphone size={28} className="sm:w-6 sm:h-6" />
-                  <span className="text-sm font-medium">Mpesa</span>
-                </button>
-                <button
-                  onClick={() => setPaymentMethod('cash+mpesa')}
-                  className={`p-4 sm:p-5 border-2 rounded-lg flex flex-col items-center gap-2 transition-colors relative touch-manipulation min-h-[80px] ${
-                    paymentMethod === 'cash+mpesa' ? 'border-purple-600 bg-purple-50' : 'border-gray-300 hover:border-gray-400 active:bg-gray-50'
-                  }`}
-                >
-                  <div className="relative">
-                    <Banknote size={20} className="absolute -top-1 -left-1 text-blue-600" />
-                    <Smartphone size={20} className="absolute -bottom-1 -right-1 text-green-600" />
-                    <Wallet size={16} className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-purple-600 bg-white rounded-full" />
-                  </div>
-                  <span className="text-sm font-medium">Split</span>
-                </button>
-              </div>
-            </div>
-
-            {paymentMethod === 'cash' && (
-              <div className="mb-4">
-                <label className="block font-semibold mb-2 text-base">Amount Received *</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={amountReceived}
-                  onChange={(e) => setAmountReceived(e.target.value)}
-                  placeholder={`${CURRENCY_SYMBOL} ${(order.balance || 0).toFixed(2)}`}
-                  className="w-full px-4 py-3 text-base border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
-                />
-                {amountReceived && parseFloat(amountReceived) >= (order.balance || 0) && (
-                  <p className="mt-2 text-sm text-green-600 font-semibold">
-                    Change: {CURRENCY_SYMBOL} {(parseFloat(amountReceived) - (order.balance || 0)).toFixed(2)}
-                  </p>
-                )}
-              </div>
-            )}
-
-            {paymentMethod === 'mobile' && (
-              <div className="mb-4 space-y-3">
-                <div>
-                  <label className="block font-semibold mb-2 text-base">Amount Paid *</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={amountReceived}
-                    onChange={(e) => setAmountReceived(e.target.value)}
-                    placeholder={`${CURRENCY_SYMBOL} ${(order.balance || 0).toFixed(2)}`}
-                    className="w-full px-4 py-3 text-base border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
-                  />
-                  {amountReceived && parseFloat(amountReceived) >= (order.balance || 0) && (
-                    <p className="mt-2 text-sm text-green-600 font-semibold">
-                      Change: {CURRENCY_SYMBOL} {(parseFloat(amountReceived) - (order.balance || 0)).toFixed(2)}
-                    </p>
-                  )}
-                </div>
-                <div>
-                  <label className="block font-semibold mb-2 text-base">Mobile Number *</label>
-                  <input
-                    type="text"
-                    value={mobileNumber}
-                    onChange={(e) => setMobileNumber(e.target.value)}
-                    placeholder="e.g., 0745491093"
-                    className="w-full px-4 py-3 text-base border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
-                  />
-                </div>
-              </div>
-            )}
-
-            {paymentMethod === 'cash+mpesa' && (
-              <div className="mb-4 space-y-3">
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block font-semibold mb-2 text-base">Cash Amount</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={splitCashAmount}
-                      onChange={(e) => {
-                        const cashValue = e.target.value;
-                        setSplitCashAmount(cashValue);
-                        const cash = parseFloat(cashValue) || 0;
-                        const balanceDue = order.balance || 0;
-                        const remaining = Math.max(0, balanceDue - cash);
-                        setSplitMobileAmount(remaining > 0 ? remaining.toFixed(2) : '0.00');
-                      }}
-                      placeholder="0.00"
-                      className="w-full px-4 py-3 text-base border-2 border-blue-300 rounded-lg focus:border-blue-500 focus:outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="block font-semibold mb-2 text-base">Mpesa Amount</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={splitMobileAmount}
-                      readOnly
-                      className="w-full px-4 py-3 text-base border-2 border-green-300 rounded-lg bg-gray-50"
-                    />
-                  </div>
-                </div>
-                <div>
-                  <label className="block font-semibold mb-2 text-base">Mobile Number *</label>
-                  <input
-                    type="text"
-                    value={mobileNumber}
-                    onChange={(e) => setMobileNumber(e.target.value)}
-                    placeholder="e.g., 0745491093"
-                    className="w-full px-4 py-3 text-base border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
-                  />
-                </div>
-              </div>
-            )}
-
-            <div className="mb-4">
-              <label className="block font-semibold mb-2 text-base">Payment Reference (Optional)</label>
-              <input
-                type="text"
-                value={paymentReference}
-                onChange={(e) => setPaymentReference(e.target.value)}
-                placeholder="e.g., Transaction ID, Receipt Number"
-                className="w-full px-4 py-3 text-base border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
-              />
-            </div>
-
-            <div className="flex flex-col sm:flex-row gap-3">
-              <button
-                onClick={() => {
-                  setShowPaymentModal(false);
-                  setPaymentMethod('');
-                  setPaymentReference('');
-                  setAmountReceived('');
-                  setSplitCashAmount('');
-                  setSplitMobileAmount('');
-                  setMobileNumber('');
-                }}
-                className="flex-1 bg-gray-300 hover:bg-gray-400 active:bg-gray-500 text-gray-800 py-4 rounded-lg font-semibold text-base touch-manipulation min-h-[44px]"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleConfirmPayment}
-                className="flex-1 bg-green-600 hover:bg-green-700 active:bg-green-800 text-white py-4 rounded-lg font-semibold text-base touch-manipulation min-h-[44px]"
-              >
-                Confirm Payment
-              </button>
-            </div>
-          </div>
-        </div>
+      {order && (
+        <PaymentModal
+          show={payment.showPayment}
+          totalAmount={order.balance || 0}
+          paymentState={payment}
+          onProcessPayment={handleProcessPayment}
+          onCancel={payment.closePayment}
+          customers={customers || []}
+        />
       )}
     </Layout>
   );

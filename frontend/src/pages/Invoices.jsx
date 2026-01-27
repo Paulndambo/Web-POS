@@ -575,112 +575,91 @@ const Invoices = () => {
             )}
           </div>
         ) : (
-          <div className="space-y-4">
-            {filteredInvoices.map((invoice) => {
-              const amountDue = invoice.total - (invoice.amountPaid || 0);
-              return (
-                <div 
-                  key={invoice.id} 
-                  className={`bg-white rounded-xl shadow-md hover:shadow-lg transition p-4 sm:p-6 border-l-4 ${
-                    invoice.status === 'paid' ? 'border-green-500' : 
-                    invoice.status === 'partial' ? 'border-blue-500' : 
-                    'border-yellow-500'
-                  }`}
-                >
-                  <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-                    <div className="flex-1 min-w-0">
-                      {/* Header Row */}
-                      <div className="flex flex-wrap items-center gap-2 sm:gap-4 mb-3">
-                        <div className="bg-blue-100 text-blue-700 px-3 py-1.5 rounded-lg font-semibold text-sm sm:text-base">
-                          Invoice #{invoice.invoiceNo}
-                        </div>
-                        {getStatusBadge(invoice)}
-                        <div className="text-xs sm:text-sm text-gray-600 flex items-center gap-1">
-                          <Calendar size={14} />
-                          {formatDate(invoice.timestamp)}
-                        </div>
-                      </div>
-                      
-                      {/* Customer Info */}
-                      {invoice.customerName && (
-                        <div className="mb-3">
-                          <p className="text-xs text-gray-500 mb-1">Customer</p>
-                          <p className="font-semibold text-sm sm:text-base">{invoice.customerName}</p>
+          <div className="bg-white rounded-xl shadow-md overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50 border-b border-gray-200">
+                  <tr>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                      Invoice #
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                      Customer
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                      Date
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                      Status
+                    </th>
+                    <th className="px-6 py-4 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                      Total Amount
+                    </th>
+                    <th className="px-6 py-4 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                      Amount Due
+                    </th>
+                    <th className="px-6 py-4 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {filteredInvoices.map((invoice) => {
+                    const amountDue = invoice.total - (invoice.amountPaid || 0);
+                    return (
+                      <tr key={invoice.id} className="hover:bg-gray-50 transition">
+                        <td className="px-6 py-4">
+                          <div className="font-semibold text-gray-800">#{invoice.invoiceNo}</div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="text-sm text-gray-800">{invoice.customerName || 'N/A'}</div>
                           {invoice.customerEmail && (
-                            <p className="text-xs text-gray-600">{invoice.customerEmail}</p>
+                            <div className="text-xs text-gray-500">{invoice.customerEmail}</div>
                           )}
-                        </div>
-                      )}
-                      
-                      {/* Invoice Details Grid */}
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 md:gap-4 mb-3">
-                        <div>
-                          <p className="text-xs text-gray-500 mb-1">Items</p>
-                          <p className="font-semibold text-sm sm:text-base">{invoice.items_count} item(s)</p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-gray-500 mb-1">Total</p>
-                          <p className="font-semibold text-blue-600 text-sm sm:text-base md:text-lg">{CURRENCY_SYMBOL} {invoice.total.toFixed(2)}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-gray-500 mb-1">Paid</p>
-                          <p className="font-semibold text-green-600 text-sm sm:text-base">{CURRENCY_SYMBOL} {(invoice.amountPaid || 0).toFixed(2)}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-gray-500 mb-1">Due</p>
-                          <p className={`font-semibold text-sm sm:text-base ${amountDue > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                            {CURRENCY_SYMBOL} {amountDue.toFixed(2)}
-                          </p>
-                        </div>
-                      </div>
-
-                      {/* Payment History */}
-                      {invoice.payments && invoice.payments.length > 0 && (
-                        <div className="mt-2 text-xs sm:text-sm bg-gray-50 p-2 sm:p-3 rounded">
-                          <p className="font-semibold text-gray-700 mb-1.5">Payment History:</p>
-                          <div className="space-y-1">
-                            {invoice.payments.slice(-3).map((payment, index) => (
-                              <p key={payment.id} className="text-gray-600 break-words">
-                                <span className="block sm:inline">{CURRENCY_SYMBOL} {payment.amount.toFixed(2)} via {payment.paymentMethod === 'cash+mpesa' ? 'Cash + Mpesa' : payment.paymentMethod || 'N/A'}</span>
-                                {payment.paymentReference && (
-                                  <span className="block sm:inline sm:ml-1">
-                                    <span className="hidden sm:inline"> </span>
-                                    (Ref: {payment.paymentReference})
-                                  </span>
-                                )}
-                              </p>
-                            ))}
-                            {invoice.payments.length > 3 && (
-                              <p className="text-gray-500 italic">+ {invoice.payments.length - 3} more payment(s)</p>
-                            )}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm text-gray-600 flex items-center gap-1">
+                            <Calendar size={14} />
+                            {formatDate(invoice.timestamp)}
                           </div>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Action Buttons */}
-                    <div className="flex flex-row sm:flex-row lg:flex-col gap-2 flex-shrink-0">
-                      <button
-                        onClick={() => navigate(`/invoice/${invoice.id}`)}
-                        className="flex-1 sm:flex-none bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white px-4 py-3 rounded-lg font-semibold text-base flex items-center justify-center gap-2 transition shadow-md hover:shadow-lg touch-manipulation"
-                      >
-                        <Eye size={18} />
-                        <span className="hidden sm:inline">View/Edit</span>
-                        <span className="sm:hidden">View</span>
-                      </button>
-                      <button
-                        onClick={() => printInvoice(invoice)}
-                        className="flex-1 sm:flex-none bg-purple-600 hover:bg-purple-700 active:bg-purple-800 text-white px-4 py-3 rounded-lg font-semibold text-base flex items-center justify-center gap-2 transition shadow-md hover:shadow-lg touch-manipulation"
-                        title="Print invoice"
-                      >
-                        <Printer size={18} />
-                        <span className="hidden sm:inline">Print</span>
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          {getStatusBadge(invoice)}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-right">
+                          <div className="font-semibold text-blue-600">{CURRENCY_SYMBOL} {invoice.total.toFixed(2)}</div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-right">
+                          <div className={`font-semibold ${amountDue > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                            {CURRENCY_SYMBOL} {amountDue.toFixed(2)}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center justify-center gap-2">
+                            <button
+                              onClick={() => navigate(`/invoice/${invoice.id}`)}
+                              className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg font-semibold text-xs flex items-center gap-1 transition"
+                              title="View Details"
+                            >
+                              <Eye size={14} />
+                              <span className="hidden sm:inline">View</span>
+                            </button>
+                            <button
+                              onClick={() => printInvoice(invoice)}
+                              className="bg-purple-600 hover:bg-purple-700 text-white px-3 py-1.5 rounded-lg font-semibold text-xs flex items-center gap-1 transition"
+                              title="Print Invoice"
+                            >
+                              <Printer size={14} />
+                              <span className="hidden sm:inline">Print</span>
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
           </>

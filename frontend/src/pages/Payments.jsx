@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Layout from '../components/Layout.jsx';
 import { 
   CreditCard, 
@@ -17,12 +17,60 @@ import {
   CheckCircle,
   Clock,
   XCircle,
-  Eye
+  Eye,
+  AlertCircle,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import { CURRENCY_SYMBOL } from '../config/currency.js';
-import { showSuccess, showWarning } from '../utils/toast.js';
+import { showSuccess, showWarning, showError } from '../utils/toast.js';
+import { apiGet } from '../utils/api.js';
+import { useAuth } from '../contexts/AuthContext.jsx';
+
+// Transform backend payment data to frontend format
+const transformPaymentFromBackend = (backendPayment) => {
+  // Map payment method from backend format to frontend format
+  const paymentMethodMap = {
+    'cash': 'Cash',
+    'mpesa': 'M-Pesa',
+    'bank_transfer': 'Bank Transfer',
+    'credit_card': 'Credit Card',
+    'cheque': 'Cheque',
+    '': 'Other'
+  };
+
+  // Map status from backend format to frontend format
+  const statusMap = {
+    'Paid': 'Completed',
+    'Pending': 'Pending',
+    'Failed': 'Failed',
+    'Cancelled': 'Cancelled'
+  };
+
+  // Map direction from backend format to frontend format
+  const directionMap = {
+    'Incoming': 'incoming',
+    'Outgoing': 'outgoing'
+  };
+
+  return {
+    id: backendPayment.id,
+    date: backendPayment.created_at ? backendPayment.created_at.split('T')[0] : new Date().toISOString().split('T')[0],
+    reference: backendPayment.receipt_number || `PAY-${backendPayment.id}`,
+    type: 'Customer Payment', // Default type since backend doesn't provide this
+    payer_payee: backendPayment.paid_by || 'Unknown',
+    description: `Payment - Receipt ${backendPayment.receipt_number || backendPayment.id}`, // Default description
+    amount: parseFloat(backendPayment.amount_received || 0),
+    payment_method: paymentMethodMap[backendPayment.payment_method?.toLowerCase()] || backendPayment.payment_method || 'Other',
+    transaction_id: backendPayment.receipt_number || '',
+    status: statusMap[backendPayment.status] || backendPayment.status || 'Pending',
+    direction: directionMap[backendPayment.direction] || backendPayment.direction?.toLowerCase() || 'incoming'
+  };
+};
 
 const Payments = () => {
+  const { isAuthenticated, loading: authLoading } = useAuth();
+  
   // Payment types
   const paymentTypes = ['Customer Payment', 'Supplier Payment', 'Expense Payment', 'Other'];
   
@@ -32,140 +80,9 @@ const Payments = () => {
   // Payment statuses
   const statuses = ['Completed', 'Pending', 'Failed', 'Cancelled'];
 
-  // Dummy data - all payments (incoming and outgoing)
-  const [payments, setPayments] = useState([
-    {
-      id: 1,
-      date: '2024-01-15',
-      reference: 'PAY-2024-001',
-      type: 'Customer Payment',
-      payer_payee: 'John Kamau',
-      description: 'Payment for Invoice INV-2024-045',
-      amount: 15000,
-      payment_method: 'M-Pesa',
-      transaction_id: 'MPE123456789',
-      status: 'Completed',
-      direction: 'incoming'
-    },
-    {
-      id: 2,
-      date: '2024-01-14',
-      reference: 'PAY-2024-002',
-      type: 'Supplier Payment',
-      payer_payee: 'ABC Suppliers Ltd',
-      description: 'Payment for inventory purchase',
-      amount: 45000,
-      payment_method: 'Bank Transfer',
-      transaction_id: 'BT987654321',
-      status: 'Completed',
-      direction: 'outgoing'
-    },
-    {
-      id: 3,
-      date: '2024-01-13',
-      reference: 'PAY-2024-003',
-      type: 'Customer Payment',
-      payer_payee: 'Sarah Njeri',
-      description: 'Partial payment for Invoice INV-2024-042',
-      amount: 8500,
-      payment_method: 'Cash',
-      transaction_id: 'CASH-001',
-      status: 'Completed',
-      direction: 'incoming'
-    },
-    {
-      id: 4,
-      date: '2024-01-12',
-      reference: 'PAY-2024-004',
-      type: 'Expense Payment',
-      payer_payee: 'Kenya Power',
-      description: 'Electricity bill payment',
-      amount: 8500,
-      payment_method: 'M-Pesa',
-      transaction_id: 'MPE987654321',
-      status: 'Completed',
-      direction: 'outgoing'
-    },
-    {
-      id: 5,
-      date: '2024-01-11',
-      reference: 'PAY-2024-005',
-      type: 'Customer Payment',
-      payer_payee: 'Grace Wambui',
-      description: 'Payment for Invoice INV-2024-038',
-      amount: 25000,
-      payment_method: 'Bank Transfer',
-      transaction_id: 'BT123456789',
-      status: 'Completed',
-      direction: 'incoming'
-    },
-    {
-      id: 6,
-      date: '2024-01-10',
-      reference: 'PAY-2024-006',
-      type: 'Supplier Payment',
-      payer_payee: 'XYZ Distributors',
-      description: 'Payment for stock delivery',
-      amount: 28500,
-      payment_method: 'Cheque',
-      transaction_id: 'CHQ-001234',
-      status: 'Pending',
-      direction: 'outgoing'
-    },
-    {
-      id: 7,
-      date: '2024-01-09',
-      reference: 'PAY-2024-007',
-      type: 'Customer Payment',
-      payer_payee: 'David Ochieng',
-      description: 'Payment for Invoice INV-2024-035',
-      amount: 12000,
-      payment_method: 'M-Pesa',
-      transaction_id: 'MPE456789123',
-      status: 'Completed',
-      direction: 'incoming'
-    },
-    {
-      id: 8,
-      date: '2024-01-08',
-      reference: 'PAY-2024-008',
-      type: 'Expense Payment',
-      payer_payee: 'Property Management Ltd',
-      description: 'Monthly rent payment',
-      amount: 50000,
-      payment_method: 'Bank Transfer',
-      transaction_id: 'BT555666777',
-      status: 'Completed',
-      direction: 'outgoing'
-    },
-    {
-      id: 9,
-      date: '2024-01-16',
-      reference: 'PAY-2024-009',
-      type: 'Customer Payment',
-      payer_payee: 'Michael Otieno',
-      description: 'Payment for Invoice INV-2024-048',
-      amount: 18000,
-      payment_method: 'Credit Card',
-      transaction_id: 'CC789456123',
-      status: 'Pending',
-      direction: 'incoming'
-    },
-    {
-      id: 10,
-      date: '2024-01-17',
-      reference: 'PAY-2024-010',
-      type: 'Supplier Payment',
-      payer_payee: 'Global Imports Co.',
-      description: 'Payment for bulk order',
-      amount: 32000,
-      payment_method: 'Bank Transfer',
-      transaction_id: 'BT111222333',
-      status: 'Failed',
-      direction: 'outgoing'
-    }
-  ]);
-
+  const [payments, setPayments] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState('All');
   const [filterStatus, setFilterStatus] = useState('All');
@@ -174,6 +91,71 @@ const Payments = () => {
   const [showModal, setShowModal] = useState(false);
   const [showFilterPanel, setShowFilterPanel] = useState(false);
   const [editingPayment, setEditingPayment] = useState(null);
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const [hasNext, setHasNext] = useState(false);
+  const [hasPrevious, setHasPrevious] = useState(false);
+  const itemsPerPage = 10;
+
+  const fetchPayments = async (page = 1) => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      // Build endpoint with pagination
+      const endpoint = `/payments/?limit=${itemsPerPage}&offset=${(page - 1) * itemsPerPage}`;
+      const response = await apiGet(endpoint);
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || errorData.message || `HTTP error! status: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      const paymentsArray = data.results || [];
+      const transformedPayments = paymentsArray.map(transformPaymentFromBackend);
+      
+      setPayments(transformedPayments);
+      setTotalCount(data.count || 0);
+      setTotalPages(Math.ceil((data.count || 0) / itemsPerPage));
+      setHasNext(!!data.next);
+      setHasPrevious(!!data.previous);
+    } catch (error) {
+      console.error('Error fetching payments:', error);
+      setError(error.message);
+      setPayments([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    // Wait for authentication to be ready before fetching
+    if (!authLoading && isAuthenticated) {
+      fetchPayments(currentPage);
+    } else if (!authLoading && !isAuthenticated) {
+      setLoading(false);
+    }
+  }, [authLoading, isAuthenticated, currentPage]);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    if (!authLoading && isAuthenticated && currentPage === 1) {
+      fetchPayments(1);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchTerm, filterType, filterStatus, filterDirection, filterDateRange]);
+  
+  // Reset page when filters change
+  useEffect(() => {
+    if (currentPage !== 1) {
+      setCurrentPage(1);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchTerm, filterType, filterStatus, filterDirection, filterDateRange]);
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
     type: 'Customer Payment',
@@ -322,12 +304,27 @@ const Payments = () => {
   const outgoingPayments = filteredPayments.filter(p => p.direction === 'outgoing').reduce((sum, p) => sum + p.amount, 0);
   const completedPayments = filteredPayments.filter(p => p.status === 'Completed').length;
 
+  const handlePreviousPage = () => {
+    if (hasPrevious && currentPage > 1) {
+      setCurrentPage(currentPage - 1);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
+  const handleNextPage = () => {
+    if (hasNext && currentPage < totalPages) {
+      setCurrentPage(currentPage + 1);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
   const clearFilters = () => {
     setFilterType('All');
     setFilterStatus('All');
     setFilterDirection('All');
     setFilterDateRange('All');
     setSearchTerm('');
+    setCurrentPage(1);
   };
 
   const activeFiltersCount = [filterType, filterStatus, filterDirection, filterDateRange].filter(f => f !== 'All').length;
@@ -349,9 +346,11 @@ const Payments = () => {
               Record Payment
             </button>
             <button
-              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-semibold flex items-center justify-center gap-2 shadow-md hover:shadow-lg transition"
+              onClick={fetchPayments}
+              disabled={loading}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-semibold flex items-center justify-center gap-2 shadow-md hover:shadow-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <RefreshCw size={20} />
+              <RefreshCw size={20} className={loading ? 'animate-spin' : ''} />
               Refresh
             </button>
           </div>
@@ -515,49 +514,67 @@ const Payments = () => {
           )}
         </div>
 
+        {/* Error Message */}
+        {error && (
+          <div className="mb-6 bg-red-50 border-l-4 border-red-500 p-4 rounded-lg flex items-center gap-3">
+            <AlertCircle className="text-red-500 flex-shrink-0" size={24} />
+            <div>
+              <p className="text-red-800 font-semibold">Error loading payments</p>
+              <p className="text-red-600 text-sm">{error}</p>
+            </div>
+          </div>
+        )}
+
         {/* Payments Table */}
         <div className="bg-white rounded-xl shadow-md overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50 border-b border-gray-200">
-                <tr>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                    Date & Reference
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                    Type
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                    Payer/Payee
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                    Description
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                    Payment Method
-                  </th>
-                  <th className="px-6 py-4 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                    Amount
-                  </th>
-                  <th className="px-6 py-4 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-6 py-4 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {filteredPayments.length === 0 ? (
+          {loading ? (
+            <div className="p-12 text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-4 border-blue-600 mx-auto mb-4"></div>
+              <p className="text-gray-600">Loading payments...</p>
+            </div>
+          ) : (
+            <>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                <thead className="bg-gray-50 border-b border-gray-200">
                   <tr>
-                    <td colSpan="8" className="px-6 py-8 text-center text-gray-500">
-                      {searchTerm || activeFiltersCount > 0 
-                        ? 'No payments found matching your search or filters.' 
-                        : 'No payments found. Record your first payment to get started.'}
-                    </td>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                      Date & Reference
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                      Type
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                      Payer/Payee
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                      Description
+                    </th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                      Payment Method
+                    </th>
+                    <th className="px-6 py-4 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                      Amount
+                    </th>
+                    <th className="px-6 py-4 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                      Status
+                    </th>
+                    <th className="px-6 py-4 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                      Actions
+                    </th>
                   </tr>
-                ) : (
-                  filteredPayments.map((payment) => (
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {filteredPayments.length === 0 ? (
+                    <tr>
+                      <td colSpan="8" className="px-6 py-8 text-center text-gray-500">
+                        {searchTerm || activeFiltersCount > 0 
+                          ? 'No payments found matching your search or filters.' 
+                          : 'No payments found. Record your first payment to get started.'}
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredPayments.map((payment) => (
                     <tr key={payment.id} className="hover:bg-gray-50 transition">
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm font-semibold text-gray-800 flex items-center gap-2">
@@ -615,9 +632,69 @@ const Payments = () => {
                     </tr>
                   ))
                 )}
-              </tbody>
-            </table>
-          </div>
+                </tbody>
+              </table>
+            </div>
+            
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+              <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-between">
+                <div className="text-sm text-gray-600">
+                  Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, totalCount)} of {totalCount} payments
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handlePreviousPage}
+                    disabled={!hasPrevious || currentPage === 1}
+                    className="px-4 py-2 bg-gray-100 hover:bg-gray-200 disabled:bg-gray-50 disabled:text-gray-400 text-gray-700 rounded-lg font-semibold flex items-center gap-2 transition"
+                  >
+                    <ChevronLeft size={18} />
+                    Previous
+                  </button>
+                  <div className="flex items-center gap-1">
+                    {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                      let pageNum;
+                      if (totalPages <= 5) {
+                        pageNum = i + 1;
+                      } else if (currentPage <= 3) {
+                        pageNum = i + 1;
+                      } else if (currentPage >= totalPages - 2) {
+                        pageNum = totalPages - 4 + i;
+                      } else {
+                        pageNum = currentPage - 2 + i;
+                      }
+                      
+                      return (
+                        <button
+                          key={pageNum}
+                          onClick={() => {
+                            setCurrentPage(pageNum);
+                            window.scrollTo({ top: 0, behavior: 'smooth' });
+                          }}
+                          className={`px-3 py-2 rounded-lg font-semibold transition ${
+                            currentPage === pageNum
+                              ? 'bg-blue-600 text-white'
+                              : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+                          }`}
+                        >
+                          {pageNum}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <button
+                    onClick={handleNextPage}
+                    disabled={!hasNext || currentPage === totalPages}
+                    className="px-4 py-2 bg-gray-100 hover:bg-gray-200 disabled:bg-gray-50 disabled:text-gray-400 text-gray-700 rounded-lg font-semibold flex items-center gap-2 transition"
+                  >
+                    Next
+                    <ChevronRight size={18} />
+                  </button>
+                </div>
+              </div>
+            )}
+            </>
+          )}
         </div>
 
         {/* Add/Edit Payment Modal */}

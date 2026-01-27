@@ -119,7 +119,6 @@ class PayOrderAPIView(generics.CreateAPIView):
     
 
 
-
 class OrderItemUpdateAPIView(generics.CreateAPIView):
     serializer_class = OrderItemUpdateSerializer
     permission_classes = [IsAuthenticated]
@@ -143,7 +142,7 @@ class OrderItemUpdateAPIView(generics.CreateAPIView):
                 order_item = OrderItem.objects.get(id=serializer.validated_data["order_item"])
                 order_item.quantity += int(serializer.validated_data["quantity"])
                 order_item.save()
-                order_item.item_total = Decimal(order_item.quantity) * Decimal(order_item.inventory_item.price)
+                order_item.item_total = Decimal(order_item.quantity) * Decimal(order_item.inventory_item.selling_price)
                 order_item.save()
 
                 order_item.refresh_from_db()
@@ -155,7 +154,7 @@ class OrderItemUpdateAPIView(generics.CreateAPIView):
                 order_item = OrderItem.objects.get(id=serializer.validated_data["order_item"])
                 order_item.quantity -= int(serializer.validated_data["quantity"])
                 order_item.save()
-                order_item.item_total = Decimal(order_item.quantity) * Decimal(order_item.inventory_item.price)
+                order_item.item_total = Decimal(order_item.quantity) * Decimal(order_item.inventory_item.selling_price)
                 order_item.save()
 
                 order_item.refresh_from_db()
