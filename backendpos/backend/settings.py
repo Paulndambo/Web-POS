@@ -51,6 +51,7 @@ INSTALLED_APPS = [
     "invoices",
     "customers",
     "supplychain",
+    "finances",
 ]
 
 MIDDLEWARE = [

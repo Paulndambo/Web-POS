@@ -4,8 +4,10 @@ import { Link2, Plus, Edit, X, Save, Package, Building2, RefreshCw, AlertCircle,
 import { showSuccess, showError, showWarning } from '../utils/toast.js';
 import { apiGet, apiPost, apiPut } from '../utils/api.js';
 import { CURRENCY_SYMBOL } from '../config/currency.js';
+import { useAuth } from '../contexts/AuthContext.jsx';
 
 const ProductSuppliers = () => {
+  const { user } = useAuth();
   const [productSuppliers, setProductSuppliers] = useState([]);
   const [products, setProducts] = useState([]);
   const [suppliers, setSuppliers] = useState([]);
@@ -180,7 +182,10 @@ const ProductSuppliers = () => {
         supplier: parseInt(formData.supplier),
         supplier_product_code: formData.supplier_product_code || null,
         cost_price: parseFloat(formData.cost_price),
-        moq: parseInt(formData.moq) || 1
+        moq: parseInt(formData.moq) || 1,
+        // Attach business and branch from currently logged in user
+        business: user?.business_id || null,
+        branch: user?.branch_id || null
       };
 
       if (editingProductSupplier) {

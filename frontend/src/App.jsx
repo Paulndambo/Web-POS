@@ -38,6 +38,10 @@ import ProductSuppliers from './pages/ProductSuppliers.jsx';
 import SupplyRequests from './pages/SupplyRequests.jsx';
 import PurchaseOrders from './pages/PurchaseOrders.jsx';
 import ViewPurchaseOrder from './pages/ViewPurchaseOrder.jsx';
+import SupplierInvoices from './pages/SupplierInvoices.jsx';
+import ViewSupplierInvoice from './pages/ViewSupplierInvoice.jsx';
+import GoodsReceipt from './pages/GoodsReceipt.jsx';
+import BusinessLedger from './pages/BusinessLedger.jsx';
 
 function App() {
   return (
@@ -204,6 +208,14 @@ function App() {
                   }
                 />
                 <Route
+                  path="/business-ledger"
+                  element={
+                    <ProtectedRoute>
+                      <BusinessLedger />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
                   path="/categories"
                   element={
                     <ProtectedRoute>
@@ -288,6 +300,30 @@ function App() {
                   element={
                     <ProtectedRoute>
                       <ViewPurchaseOrder />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/supplier-invoices"
+                  element={
+                    <ProtectedRoute>
+                      <SupplierInvoices />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/supplier-invoice/:id"
+                  element={
+                    <ProtectedRoute>
+                      <ViewSupplierInvoice />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/goods-receipt"
+                  element={
+                    <ProtectedRoute>
+                      <GoodsReceipt />
                     </ProtectedRoute>
                   }
                 />

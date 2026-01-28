@@ -119,6 +119,11 @@ const SupplyRequests = () => {
 
   const handleOpenModal = (request = null) => {
     if (request) {
+      // Prevent editing if status is Declined or Added to PO
+      if (request.status?.toLowerCase() === 'declined' || request.status?.toLowerCase() === 'added to po') {
+        showWarning('Cannot edit supply requests that are declined or added to purchase order');
+        return;
+      }
       setEditingRequest(request);
       setFormData({
         product: request.product || request.product_id || '',
@@ -169,6 +174,12 @@ const SupplyRequests = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    // Prevent editing if status is Declined or Added to PO
+    if (editingRequest && (editingRequest.status?.toLowerCase() === 'declined' || editingRequest.status?.toLowerCase() === 'added to po')) {
+      showWarning('Cannot edit supply requests that are declined or added to purchase order');
+      return;
+    }
     
     if (!formData.product || !formData.quantity) {
       showWarning('Please fill in all required fields');
@@ -221,9 +232,8 @@ const SupplyRequests = () => {
   const getStatusBadge = (status) => {
     const statusLower = status?.toLowerCase();
     if (statusLower === 'pending') return 'bg-yellow-100 text-yellow-700';
-    if (statusLower === 'approved') return 'bg-green-100 text-green-700';
-    if (statusLower === 'rejected') return 'bg-red-100 text-red-700';
-    if (statusLower === 'fulfilled') return 'bg-blue-100 text-blue-700';
+    if (statusLower === 'declined') return 'bg-red-100 text-red-700';
+    if (statusLower === 'added to po') return 'bg-blue-100 text-blue-700';
     return 'bg-gray-100 text-gray-700';
   };
 
@@ -318,16 +328,16 @@ const SupplyRequests = () => {
               </div>
             </div>
 
-            <div className="bg-white rounded-xl shadow-md p-5 border-l-4 border-green-600">
+            <div className="bg-white rounded-xl shadow-md p-5 border-l-4 border-red-600">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600 mb-1">Approved</p>
+                  <p className="text-sm text-gray-600 mb-1">Declined</p>
                   <p className="text-3xl font-bold text-gray-800">
-                    {supplyRequests.filter(r => r.status?.toLowerCase() === 'approved').length}
+                    {supplyRequests.filter(r => r.status?.toLowerCase() === 'declined').length}
                   </p>
                 </div>
-                <div className="bg-green-100 p-3 rounded-full">
-                  <ClipboardList size={28} className="text-green-600" />
+                <div className="bg-red-100 p-3 rounded-full">
+                  <ClipboardList size={28} className="text-red-600" />
                 </div>
               </div>
             </div>
@@ -335,9 +345,9 @@ const SupplyRequests = () => {
             <div className="bg-white rounded-xl shadow-md p-5 border-l-4 border-blue-600">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600 mb-1">Fulfilled</p>
+                  <p className="text-sm text-gray-600 mb-1">Added to PO</p>
                   <p className="text-3xl font-bold text-gray-800">
-                    {supplyRequests.filter(r => r.status?.toLowerCase() === 'fulfilled').length}
+                    {supplyRequests.filter(r => r.status?.toLowerCase() === 'added to po').length}
                   </p>
                 </div>
                 <div className="bg-blue-100 p-3 rounded-full">
@@ -393,8 +403,11 @@ const SupplyRequests = () => {
                     <td className="px-6 py-4 whitespace-nowrap text-center">
                       <button
                         onClick={() => handleOpenModal(request)}
-                        className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition"
-                        title="Edit Request"
+                        disabled={request.status?.toLowerCase() === 'declined' || request.status?.toLowerCase() === 'added to po'}
+                        className="p-2 text-blue-600 hover:bg-blue-50 disabled:text-gray-400 disabled:cursor-not-allowed disabled:hover:bg-transparent rounded-lg transition"
+                        title={request.status?.toLowerCase() === 'declined' || request.status?.toLowerCase() === 'added to po' 
+                          ? 'Cannot edit declined or added to PO requests' 
+                          : 'Edit Request'}
                       >
                         <Edit size={18} />
                       </button>
@@ -455,7 +468,8 @@ const SupplyRequests = () => {
                         }}
                         onFocus={() => setShowProductDropdown(true)}
                         placeholder="Search for a product..."
-                        className="w-full pl-10 pr-10 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
+                        disabled={editingRequest && (editingRequest.status?.toLowerCase() === 'declined' || editingRequest.status?.toLowerCase() === 'added to po')}
+                        className="w-full pl-10 pr-10 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none disabled:bg-gray-100 disabled:cursor-not-allowed"
                         required
                       />
                       <ChevronDown 
@@ -507,7 +521,8 @@ const SupplyRequests = () => {
                     min="1"
                     value={formData.quantity}
                     onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
-                    className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
+                    disabled={editingRequest && (editingRequest.status?.toLowerCase() === 'declined' || editingRequest.status?.toLowerCase() === 'added to po')}
+                    className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none disabled:bg-gray-100 disabled:cursor-not-allowed"
                     required
                   />
                 </div>
@@ -520,13 +535,13 @@ const SupplyRequests = () => {
                     <select
                       value={formData.status}
                       onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                      className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
+                      disabled={editingRequest && (editingRequest.status?.toLowerCase() === 'declined' || editingRequest.status?.toLowerCase() === 'added to po')}
+                      className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none disabled:bg-gray-100 disabled:cursor-not-allowed"
                       required
                     >
                       <option value="Pending">Pending</option>
-                      <option value="Approved">Approved</option>
-                      <option value="Rejected">Rejected</option>
-                      <option value="Fulfilled">Fulfilled</option>
+                      <option value="Declined">Declined</option>
+                      <option value="Added to PO">Added to PO</option>
                     </select>
                   </div>
                 )}
@@ -541,7 +556,8 @@ const SupplyRequests = () => {
                   </button>
                   <button
                     type="submit"
-                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg font-semibold flex items-center justify-center gap-2 transition"
+                    disabled={editingRequest && (editingRequest.status?.toLowerCase() === 'declined' || editingRequest.status?.toLowerCase() === 'added to po')}
+                    className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white py-2 rounded-lg font-semibold flex items-center justify-center gap-2 transition"
                   >
                     <Save size={18} />
                     {editingRequest ? 'Update' : 'Create'}

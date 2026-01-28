@@ -2,6 +2,7 @@ from django.db import models
 from decimal import Decimal
 
 from core.models import AbstractBaseModel
+from supplychain.models import Supplier
 # Create your models here.
 class Invoice(AbstractBaseModel):
     business = models.ForeignKey("core.Business", on_delete=models.SET_NULL, null=True, related_name="businessinvoices")
@@ -37,3 +38,35 @@ class InvoiceItem(AbstractBaseModel):
 
     def __str__(self):
         return self.item.name
+    
+
+
+class SupplierInvoice(AbstractBaseModel):
+    business = models.ForeignKey("core.Business", on_delete=models.SET_NULL, null=True, related_name="businesssupplierinvoices")
+    branch = models.ForeignKey("core.Branch", on_delete=models.SET_NULL, null=True, related_name="branchsupplierinvoices")
+    supplier = models.ForeignKey(Supplier, on_delete=models.CASCADE, related_name="invoices")
+    purchase_order = models.ForeignKey("supplychain.PurchaseOrder", on_delete=models.SET_NULL, null=True, related_name="supplierinvoices")
+    invoice_number = models.CharField(max_length=255, null=True)
+    invoice_date = models.DateField()
+    due_date = models.DateField(null=True)
+    total_amount = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0'))
+    status = models.CharField(max_length=50, default="Unpaid")
+
+    def __str__(self):
+        return f"Invoice #{self.id} - {self.supplier.name}"
+    
+
+    def refresh_total_amount(self):
+        self.total_amount = sum(self.invoiceitems.values_list("item_total", flat=True))
+        self.save()
+    
+
+class SupplierInvoiceItem(AbstractBaseModel):
+    invoice = models.ForeignKey(SupplierInvoice, on_delete=models.CASCADE, related_name="invoiceitems")
+    product = models.ForeignKey("inventory.InventoryItem", on_delete=models.CASCADE)
+    quantity = models.IntegerField(default=1)
+    unit_cost = models.DecimalField(max_digits=10, decimal_places=2)
+    item_total = models.DecimalField(max_digits=10, decimal_places=2)
+
+    def __str__(self):
+        return f"{self.product.name} x {self.quantity}"

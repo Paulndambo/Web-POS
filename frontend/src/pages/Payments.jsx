@@ -2,10 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Layout from '../components/Layout.jsx';
 import { 
   CreditCard, 
-  Plus, 
-  Edit, 
   X, 
-  Save, 
   DollarSign, 
   RefreshCw, 
   Search,
@@ -23,7 +20,7 @@ import {
   ChevronRight
 } from 'lucide-react';
 import { CURRENCY_SYMBOL } from '../config/currency.js';
-import { showSuccess, showWarning, showError } from '../utils/toast.js';
+import { showError } from '../utils/toast.js';
 import { apiGet } from '../utils/api.js';
 import { useAuth } from '../contexts/AuthContext.jsx';
 
@@ -88,9 +85,7 @@ const Payments = () => {
   const [filterStatus, setFilterStatus] = useState('All');
   const [filterDirection, setFilterDirection] = useState('All');
   const [filterDateRange, setFilterDateRange] = useState('All');
-  const [showModal, setShowModal] = useState(false);
   const [showFilterPanel, setShowFilterPanel] = useState(false);
-  const [editingPayment, setEditingPayment] = useState(null);
   
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -156,95 +151,6 @@ const Payments = () => {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchTerm, filterType, filterStatus, filterDirection, filterDateRange]);
-  const [formData, setFormData] = useState({
-    date: new Date().toISOString().split('T')[0],
-    type: 'Customer Payment',
-    payer_payee: '',
-    description: '',
-    amount: '',
-    payment_method: 'Cash',
-    transaction_id: '',
-    status: 'Completed',
-    direction: 'incoming'
-  });
-
-  const handleOpenModal = (payment = null) => {
-    if (payment) {
-      setEditingPayment(payment);
-      setFormData({
-        date: payment.date || '',
-        type: payment.type || 'Customer Payment',
-        payer_payee: payment.payer_payee || '',
-        description: payment.description || '',
-        amount: payment.amount || '',
-        payment_method: payment.payment_method || 'Cash',
-        transaction_id: payment.transaction_id || '',
-        status: payment.status || 'Completed',
-        direction: payment.direction || 'incoming'
-      });
-    } else {
-      setEditingPayment(null);
-      setFormData({
-        date: new Date().toISOString().split('T')[0],
-        type: 'Customer Payment',
-        payer_payee: '',
-        description: '',
-        amount: '',
-        payment_method: 'Cash',
-        transaction_id: '',
-        status: 'Completed',
-        direction: 'incoming'
-      });
-    }
-    setShowModal(true);
-  };
-
-  const handleCloseModal = () => {
-    setShowModal(false);
-    setEditingPayment(null);
-    setFormData({
-      date: new Date().toISOString().split('T')[0],
-      type: 'Customer Payment',
-      payer_payee: '',
-      description: '',
-      amount: '',
-      payment_method: 'Cash',
-      transaction_id: '',
-      status: 'Completed',
-      direction: 'incoming'
-    });
-  };
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    
-    if (!formData.payer_payee || !formData.amount || !formData.description) {
-      showWarning('Please fill in all required fields');
-      return;
-    }
-
-    if (editingPayment) {
-      // Update existing payment
-      setPayments(payments.map(pay => 
-        pay.id === editingPayment.id 
-          ? { ...pay, ...formData, amount: parseFloat(formData.amount) }
-          : pay
-      ));
-      showSuccess(`Payment "${formData.reference || 'record'}" updated successfully!`);
-    } else {
-      // Add new payment
-      const newPayment = {
-        id: Math.max(...payments.map(p => p.id), 0) + 1,
-        ...formData,
-        amount: parseFloat(formData.amount),
-        reference: `PAY-${new Date().getFullYear()}-${String(payments.length + 1).padStart(3, '0')}`
-      };
-      setPayments([newPayment, ...payments]);
-      showSuccess(`Payment recorded successfully!`);
-    }
-
-    handleCloseModal();
-  };
 
   const getStatusBadge = (status) => {
     const badges = {
@@ -338,13 +244,6 @@ const Payments = () => {
             <p className="text-gray-600">Track all incoming and outgoing payments</p>
           </div>
           <div className="flex gap-3">
-            <button
-              onClick={() => handleOpenModal()}
-              className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-semibold flex items-center justify-center gap-2 shadow-md hover:shadow-lg transition"
-            >
-              <Plus size={20} />
-              Record Payment
-            </button>
             <button
               onClick={fetchPayments}
               disabled={loading}
@@ -559,18 +458,15 @@ const Payments = () => {
                     <th className="px-6 py-4 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">
                       Status
                     </th>
-                    <th className="px-6 py-4 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                      Actions
-                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
                   {filteredPayments.length === 0 ? (
                     <tr>
-                      <td colSpan="8" className="px-6 py-8 text-center text-gray-500">
+                      <td colSpan="7" className="px-6 py-8 text-center text-gray-500">
                         {searchTerm || activeFiltersCount > 0 
                           ? 'No payments found matching your search or filters.' 
-                          : 'No payments found. Record your first payment to get started.'}
+                          : 'No payments found.'}
                       </td>
                     </tr>
                   ) : (
@@ -617,17 +513,6 @@ const Payments = () => {
                           {getStatusIcon(payment.status)}
                           {payment.status}
                         </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-center">
-                        <div className="flex items-center justify-center gap-2">
-                          <button
-                            onClick={() => handleOpenModal(payment)}
-                            className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition"
-                            title="Edit Payment"
-                          >
-                            <Edit size={18} />
-                          </button>
-                        </div>
                       </td>
                     </tr>
                   ))
@@ -697,181 +582,6 @@ const Payments = () => {
           )}
         </div>
 
-        {/* Add/Edit Payment Modal */}
-        {showModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-y-auto">
-            <div className="bg-white rounded-lg p-6 max-w-2xl w-full my-auto max-h-[95vh] overflow-y-auto">
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-2xl font-bold text-gray-800">
-                  {editingPayment ? 'Edit Payment' : 'Record New Payment'}
-                </h2>
-                <button
-                  onClick={handleCloseModal}
-                  className="text-gray-500 hover:text-gray-700"
-                >
-                  <X size={24} />
-                </button>
-              </div>
-
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      Date *
-                    </label>
-                    <input
-                      type="date"
-                      value={formData.date}
-                      onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                      className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
-                      required
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      Direction *
-                    </label>
-                    <select
-                      value={formData.direction}
-                      onChange={(e) => setFormData({ ...formData, direction: e.target.value })}
-                      className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
-                      required
-                    >
-                      <option value="incoming">Incoming (Received)</option>
-                      <option value="outgoing">Outgoing (Paid)</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      Payment Type *
-                    </label>
-                    <select
-                      value={formData.type}
-                      onChange={(e) => setFormData({ ...formData, type: e.target.value })}
-                      className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
-                      required
-                    >
-                      {paymentTypes.map(type => (
-                        <option key={type} value={type}>{type}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      {formData.direction === 'incoming' ? 'Payer' : 'Payee'} *
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.payer_payee}
-                      onChange={(e) => setFormData({ ...formData, payer_payee: e.target.value })}
-                      className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
-                      placeholder={formData.direction === 'incoming' ? 'Who paid?' : 'Who received payment?'}
-                      required
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Description *
-                  </label>
-                  <textarea
-                    value={formData.description}
-                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                    className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
-                    rows="3"
-                    required
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      Amount *
-                    </label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={formData.amount}
-                      onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
-                      className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
-                      required
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      Payment Method *
-                    </label>
-                    <select
-                      value={formData.payment_method}
-                      onChange={(e) => setFormData({ ...formData, payment_method: e.target.value })}
-                      className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
-                      required
-                    >
-                      {paymentMethods.map(method => (
-                        <option key={method} value={method}>{method}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      Transaction ID
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.transaction_id}
-                      onChange={(e) => setFormData({ ...formData, transaction_id: e.target.value })}
-                      className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
-                      placeholder="Optional"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      Status *
-                    </label>
-                    <select
-                      value={formData.status}
-                      onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                      className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
-                      required
-                    >
-                      {statuses.map(status => (
-                        <option key={status} value={status}>{status}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                <div className="flex gap-3 pt-4">
-                  <button
-                    type="button"
-                    onClick={handleCloseModal}
-                    className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-800 py-2 rounded-lg font-semibold transition"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg font-semibold flex items-center justify-center gap-2 transition"
-                  >
-                    <Save size={18} />
-                    {editingPayment ? 'Update' : 'Record'}
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
       </div>
     </Layout>
   );

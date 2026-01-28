@@ -26,7 +26,8 @@ import {
   Truck,
   ClipboardList,
   ShoppingBag,
-  Link2
+  Link2,
+  BookOpen
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext.jsx';
 
@@ -45,7 +46,16 @@ const MENU_STRUCTURE = [
     children: [
       { path: '/pos', label: 'POS', icon: ShoppingCart },
       { path: '/orders', label: 'Orders', icon: List },
-      { path: '/invoices', label: 'Invoices', icon: FileText },
+    ]
+  },
+  {
+    key: 'invoices',
+    label: 'Invoices',
+    icon: FileText,
+    type: 'group',
+    children: [
+      { path: '/invoices', label: 'Customer invoices', icon: FileText },
+      { path: '/supplier-invoices', label: 'Supplier invoices', icon: FileText },
     ]
   },
   {
@@ -69,6 +79,7 @@ const MENU_STRUCTURE = [
       { path: '/debtors', label: 'Debtors', icon: UserMinus },
       { path: '/expenses', label: 'Expenses', icon: Receipt },
       { path: '/payments', label: 'Payments', icon: CreditCard },
+      { path: '/business-ledger', label: 'Business ledger', icon: BookOpen },
     ]
   },
   {
@@ -91,6 +102,7 @@ const MENU_STRUCTURE = [
       { path: '/product-suppliers', label: 'Product Suppliers', icon: Link2 },
       { path: '/supply-requests', label: 'Supply Requests', icon: ClipboardList },
       { path: '/purchase-orders', label: 'Purchase Orders', icon: ShoppingBag },
+      { path: '/goods-receipt', label: 'Goods Receipt', icon: Package },
     ]
   },
   {
@@ -112,6 +124,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
   const { user, logout } = useAuth();
   const [openMenus, setOpenMenus] = useState({
     sales: true,
+    invoices: false,
     inventory: false,
     finance: false,
     loyalty: false,
@@ -123,11 +136,12 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
   useEffect(() => {
     const path = location.pathname;
     const menuMapping = {
-      sales: ['/pos', '/order', '/invoice'],
+      sales: ['/pos', '/order'],
+      invoices: ['/invoice', '/supplier-invoice'],
       inventory: ['/inventory', '/categories', '/menu'],
       finance: ['/creditor', '/debtor', '/expense', '/payment'],
       loyalty: ['/customer', '/gift-card'],
-      'supply-chain': ['/supplier', '/product-supplier', '/supply-request', '/purchase-order'],
+      'supply-chain': ['/supplier', '/product-supplier', '/supply-request', '/purchase-order', '/goods-receipt'],
       management: ['/business', '/branch', '/user']
     };
 

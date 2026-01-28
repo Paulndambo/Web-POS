@@ -5,21 +5,21 @@ from supplychain.models import Supplier, ProductSupplier, SupplyRequest, Purchas
 # Register your models here.
 @admin.register(Supplier)
 class SupplierAdmin(admin.ModelAdmin):
-    list_display = ("id","name", "email", "phone_number", "status", "lead_time_days", "payment_terms")
+    list_display = ("id","name", "business", "branch", "email", "phone_number", "status", "lead_time_days", "payment_terms")
     search_fields = ("name", "email", "phone_number")
 
 
 @admin.register(ProductSupplier)
 class ProductSupplierAdmin(admin.ModelAdmin):
-    list_display = ("id","product", "supplier", "supplier_product_code", "cost_price", "moq")
+    list_display = ("id","product", "business", "branch", "supplier", "supplier_product_code", "cost_price", "moq")
     search_fields = ("product__name", "supplier__name", "supplier_product_code")
 
 @admin.register(SupplyRequest)
 class SupplyRequestAdmin(admin.ModelAdmin):
-    list_display = ("id","product", "quantity", "requested_by", "status", "created_at")
+    list_display = ("id","product", "business", "branch", "quantity", "requested_by", "status", "created_at")
     search_fields = ("product__name", "requested_by__username", "status")
 
 @admin.register(PurchaseOrder)
 class PurchaseOrderAdmin(admin.ModelAdmin):
-    list_display = ("id", "supplier", "order_date", "expected_delivery_date", "status", "total_amount")
+    list_display = ("id", "supplier", "business", "branch", "order_date", "expected_delivery_date", "status", "total_amount")
     search_fields = ("supplier__name", "status")

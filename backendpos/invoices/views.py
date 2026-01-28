@@ -3,9 +3,10 @@ from django.db import transaction
 
 from invoices.serializers import (
     InvoiceSerializer, InvoiceDetailSerializer, InvoiceItemUpdateSerializer, 
-    CreateInvoiceSerializer, CreateInvoiceItemsSerializer, InvoicePaymentSerializer
+    CreateInvoiceSerializer, CreateInvoiceItemsSerializer, InvoicePaymentSerializer,
+    SupplierInvoiceSerializer, SupplierInvoiceDetailSerializer
 )
-from invoices.models import InvoiceItem, Invoice
+from invoices.models import InvoiceItem, Invoice, SupplierInvoice, SupplierInvoiceItem
 from rest_framework.views import APIView
 from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework_simplejwt.tokens import RefreshToken, TokenError
@@ -176,3 +177,18 @@ class InvoicePaymentAPIView(generics.CreateAPIView):
             )
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+
+
+class SupplierInvoiceAPIView(generics.ListAPIView):
+    permission_classes = [IsAuthenticated]
+    queryset = SupplierInvoice.objects.all().order_by("-created_at")
+    serializer_class = SupplierInvoiceSerializer
+
+
+class SupplierInvoiceDetailAPIView(generics.RetrieveUpdateDestroyAPIView):
+    permission_classes = [IsAuthenticated]
+    queryset = SupplierInvoice.objects.all().order_by("-created_at")
+    serializer_class = SupplierInvoiceDetailSerializer
+
+    lookup_field = "pk"

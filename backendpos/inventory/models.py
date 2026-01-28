@@ -12,13 +12,16 @@ class Category(AbstractBaseModel):
         return self.name
 
 class InventoryItem(AbstractBaseModel):
-    business = models.ForeignKey("core.Business", on_delete=models.SET_NULL, null=True)
+    business = models.ForeignKey("core.Business", on_delete=models.SET_NULL, null=True, related_name="businessinventoryitems")
+    branch = models.ForeignKey("core.Branch", on_delete=models.SET_NULL, null=True, related_name="branchinventoryitems")
     barcode = models.CharField(max_length=255, null=True)
     category = models.ForeignKey(Category, on_delete=models.CASCADE, related_name="products")
     name = models.CharField(max_length=255)
     quantity = models.IntegerField()
     buying_price = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0'))
     selling_price = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0'))
+    restock_level = models.IntegerField(default=0)
+    supplier = models.ForeignKey("supplychain.Supplier", on_delete=models.SET_NULL, null=True, related_name="supplieditems")
 
     def __str__(self):
         return self.name
@@ -34,6 +37,8 @@ class InventoryLog(AbstractBaseModel):
     
 
 class Menu(AbstractBaseModel):
+    business = models.ForeignKey("core.Business", on_delete=models.SET_NULL, null=True, related_name="businessmenus")
+    branch = models.ForeignKey("core.Branch", on_delete=models.SET_NULL, null=True, related_name="branchmenus")
     name = models.CharField(max_length=255)
     quantity = models.IntegerField(default=0)
     price = models.DecimalField(max_digits=10, decimal_places=2)

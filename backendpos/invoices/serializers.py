@@ -1,6 +1,6 @@
 from decimal import Decimal
 from rest_framework import serializers
-from invoices.models import Invoice, InvoiceItem
+from invoices.models import Invoice, InvoiceItem, SupplierInvoice, SupplierInvoiceItem
 
 class InvoiceItemSerializer(serializers.ModelSerializer):
     item_name = serializers.SerializerMethodField()
@@ -88,3 +88,30 @@ class InvoicePaymentSerializer(serializers.Serializer):
     status = serializers.CharField(max_length=255)
     date = serializers.DateField(required=False, allow_null=True)
     
+
+class SupplierInvoiceItemSerializer(serializers.ModelSerializer):
+    product_name = serializers.CharField(source='product.name', read_only=True)
+    class Meta:
+        model = SupplierInvoiceItem
+        fields = "__all__"
+
+
+class SupplierInvoiceSerializer(serializers.ModelSerializer):
+
+    branch_name = serializers.CharField(source='branch.name', read_only=True)
+    business_name = serializers.CharField(source='business.name', read_only=True)
+    supplier_name = serializers.CharField(source='supplier.name', read_only=True)
+    class Meta:
+        model = SupplierInvoice
+        fields = "__all__"
+
+
+
+class SupplierInvoiceDetailSerializer(serializers.ModelSerializer):
+    invoiceitems = SupplierInvoiceItemSerializer(many=True)
+    branch_name = serializers.CharField(source='branch.name', read_only=True)
+    business_name = serializers.CharField(source='business.name', read_only=True)
+    supplier_name = serializers.CharField(source='supplier.name', read_only=True)
+    class Meta:
+        model = SupplierInvoice
+        fields = "__all__"

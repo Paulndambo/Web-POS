@@ -95,6 +95,11 @@ const PurchaseOrders = () => {
 
   const handleOpenModal = (order = null) => {
     if (order) {
+      // Only allow editing orders that are Pending
+      if (order.status?.toLowerCase() !== 'pending') {
+        showWarning('Only purchase orders with Pending status can be edited.');
+        return;
+      }
       setEditingOrder(order);
       setFormData({
         supplier: order.supplier || order.supplier_id || '',
@@ -195,8 +200,8 @@ const PurchaseOrders = () => {
     const statusLower = status?.toLowerCase();
     if (statusLower === 'pending') return 'bg-yellow-100 text-yellow-700';
     if (statusLower === 'approved') return 'bg-green-100 text-green-700';
+    if (statusLower === 'declined') return 'bg-red-100 text-red-700';
     if (statusLower === 'completed') return 'bg-blue-100 text-blue-700';
-    if (statusLower === 'cancelled') return 'bg-red-100 text-red-700';
     return 'bg-gray-100 text-gray-700';
   };
 
@@ -306,6 +311,20 @@ const PurchaseOrders = () => {
               </div>
             </div>
 
+            <div className="bg-white rounded-xl shadow-md p-5 border-l-4 border-red-600">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Declined</p>
+                  <p className="text-3xl font-bold text-gray-800">
+                    {purchaseOrders.filter(o => o.status?.toLowerCase() === 'declined').length}
+                  </p>
+                </div>
+                <div className="bg-red-100 p-3 rounded-full">
+                  <ShoppingBag size={28} className="text-red-600" />
+                </div>
+              </div>
+            </div>
+
             <div className="bg-white rounded-xl shadow-md p-5 border-l-4 border-blue-600">
               <div className="flex items-center justify-between">
                 <div>
@@ -400,8 +419,9 @@ const PurchaseOrders = () => {
                         </button>
                         <button
                           onClick={() => handleOpenModal(order)}
-                          className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition"
-                          title="Edit Order"
+                          disabled={order.status?.toLowerCase() !== 'pending'}
+                          className="p-2 text-blue-600 hover:bg-blue-50 disabled:text-gray-400 disabled:cursor-not-allowed disabled:hover:bg-transparent rounded-lg transition"
+                          title={order.status?.toLowerCase() !== 'pending' ? 'Only Pending orders can be edited' : 'Edit Order'}
                         >
                           <Edit size={18} />
                         </button>

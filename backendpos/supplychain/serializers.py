@@ -23,6 +23,7 @@ class SupplyRequestSerializer(serializers.ModelSerializer):
 
 class PurchaseOrderItemSerializer(serializers.ModelSerializer):
     product_name = serializers.CharField(source='product.name', read_only=True)
+    supplier_name = serializers.CharField(source='purchase_order.supplier.name', read_only=True)
     class Meta:
         model = PurchaseOrderItem
         fields = '__all__'
@@ -56,3 +57,8 @@ class PurchaseOrderItemUpdateSerializer(serializers.Serializer):
     purchase_order_item = serializers.IntegerField()
     action_type = serializers.ChoiceField(choices=['Increase', 'Decrease', 'Remove'])
     quantity = serializers.IntegerField(default=0)
+
+
+class ReceivePurchaseOrderItemSerializer(serializers.Serializer):
+    purchase_order_item = serializers.IntegerField()
+    received_quantity = serializers.IntegerField()
