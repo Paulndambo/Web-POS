@@ -30,3 +30,14 @@ class Expense(AbstractBaseModel):
 
     def __str__(self):
         return f"{self.description} - {self.amount}"
+    
+
+
+class PricingPlan(AbstractBaseModel):
+    name = models.CharField(max_length=255)
+    cost = models.DecimalField(max_digits=10, decimal_places=2)
+    pilot_period = models.IntegerField(default=30)
+    duration_days = models.IntegerField(default=30)
+
+    def __str__(self):
+        return self.name

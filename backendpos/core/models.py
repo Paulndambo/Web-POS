@@ -13,6 +13,7 @@ class AbstractBaseModel(models.Model):
 class Business(AbstractBaseModel):
     name = models.CharField(max_length=255)
     owner_name = models.CharField(max_length=255, null=True)
+    owner = models.ForeignKey('users.User', on_delete=models.SET_NULL, null=True, related_name="businesses")
     address = models.TextField()
     city = models.CharField(max_length=255, null=True)
     country = models.CharField(max_length=255, default="Kenya")

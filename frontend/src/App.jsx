@@ -9,6 +9,7 @@ import { CustomersProvider } from './contexts/CustomersContext.jsx';
 import { GiftCardsProvider } from './contexts/GiftCardsContext.jsx';
 import ProtectedRoute from './components/ProtectedRoute.jsx';
 import Login from './components/Login.jsx';
+import OnboardingSuccess from './components/OnboardingSuccess.jsx';
 import POS from './POS.jsx';
 import Dashboard from './pages/Dashboard.jsx';
 import Orders from './pages/Orders.jsx';
@@ -55,6 +56,7 @@ function App() {
                   <Toaster />
                   <Routes>
                 <Route path="/login" element={<Login />} />
+                <Route path="/onboarding-success" element={<OnboardingSuccess />} />
                 <Route
                   path="/dashboard"
                   element={

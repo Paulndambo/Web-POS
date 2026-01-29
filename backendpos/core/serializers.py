@@ -14,3 +14,11 @@ class BranchSerializer(serializers.ModelSerializer):
     class Meta:
         model = Branch
         fields = "__all__"
+
+
+
+class BusinessOnboardingSerializer(serializers.Serializer):
+    business_details = serializers.DictField()
+    branch_details = serializers.DictField()
+    manager_details = serializers.DictField()
+    pricing_plan = serializers.DictField()
