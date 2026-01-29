@@ -13,15 +13,19 @@ from rest_framework.permissions import AllowAny, IsAdminUser, IsAuthenticated
 from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 
+from core.mixins import BusinessScopedQuerysetMixin
+
 # Create your views here.
-class UsersListAPIView(generics.ListAPIView):
+class UsersListAPIView(BusinessScopedQuerysetMixin, generics.ListAPIView):
     queryset = User.objects.all().order_by("-created_at")
     serializer_class = UserSerializer
+    permission_classes = [IsAuthenticated]
 
 
 class UserDetailAPIView(generics.RetrieveUpdateDestroyAPIView):
     queryset = User.objects.all().order_by("-created_at")
     serializer_class = UserSerializer
+    permission_classes = [IsAuthenticated]
 
     lookup_field = "pk"
 

@@ -20,6 +20,62 @@ export const getRefreshToken = () => {
 };
 
 /**
+ * Get the current logged-in user's business and branch IDs
+ * @returns {Object} Object with business and branch IDs, or null if user not found
+ */
+export const getCurrentUserBusinessAndBranch = () => {
+  try {
+    const storedUser = localStorage.getItem('pos_user');
+    if (!storedUser) {
+      return null;
+    }
+    
+    const user = JSON.parse(storedUser);
+    const businessId = user.business_id || user.business;
+    const branchId = user.branch_id || user.branch;
+    
+    if (!businessId) {
+      return null;
+    }
+    
+    return {
+      business: businessId,
+      branch: branchId || null
+    };
+  } catch (error) {
+    console.error('Error getting user business and branch:', error);
+    return null;
+  }
+};
+
+/**
+ * Enrich request body with business and branch IDs for authenticated requests
+ * @param {Object} data - Original request body data
+ * @param {boolean} requiresAuth - Whether the request requires authentication
+ * @returns {Object} Enriched request body with business and branch IDs
+ */
+const enrichRequestBody = (data, requiresAuth) => {
+  if (!requiresAuth) {
+    return data;
+  }
+  
+  const userContext = getCurrentUserBusinessAndBranch();
+  if (!userContext) {
+    return data;
+  }
+  
+  // Ensure data is an object
+  const bodyData = data || {};
+  
+  // Always set business and branch IDs (override if already present)
+  return {
+    ...bodyData,
+    business: userContext.business,
+    branch: userContext.branch
+  };
+};
+
+/**
  * Create headers for API requests
  * @param {boolean} includeAuth - Whether to include authorization header
  * @param {Object} additionalHeaders - Additional headers to include
@@ -86,11 +142,12 @@ export const apiGet = async (endpoint, requiresAuth = true) => {
  * @returns {Promise<Response>} Fetch response
  */
 export const apiPost = async (endpoint, data, requiresAuth = true) => {
+  const enrichedData = enrichRequestBody(data, requiresAuth);
   return apiRequest(
     endpoint,
     {
       method: 'POST',
-      body: JSON.stringify(data)
+      body: JSON.stringify(enrichedData)
     },
     requiresAuth
   );
@@ -104,11 +161,12 @@ export const apiPost = async (endpoint, data, requiresAuth = true) => {
  * @returns {Promise<Response>} Fetch response
  */
 export const apiPut = async (endpoint, data, requiresAuth = true) => {
+  const enrichedData = enrichRequestBody(data, requiresAuth);
   return apiRequest(
     endpoint,
     {
       method: 'PUT',
-      body: JSON.stringify(data)
+      body: JSON.stringify(enrichedData)
     },
     requiresAuth
   );
@@ -122,11 +180,12 @@ export const apiPut = async (endpoint, data, requiresAuth = true) => {
  * @returns {Promise<Response>} Fetch response
  */
 export const apiPatch = async (endpoint, data, requiresAuth = true) => {
+  const enrichedData = enrichRequestBody(data, requiresAuth);
   return apiRequest(
     endpoint,
     {
       method: 'PATCH',
-      body: JSON.stringify(data)
+      body: JSON.stringify(enrichedData)
     },
     requiresAuth
   );

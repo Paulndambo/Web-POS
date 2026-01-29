@@ -12,7 +12,6 @@ class AbstractBaseModel(models.Model):
 
 class Business(AbstractBaseModel):
     name = models.CharField(max_length=255)
-    owner_name = models.CharField(max_length=255, null=True)
     owner = models.ForeignKey('users.User', on_delete=models.SET_NULL, null=True, related_name="businesses")
     address = models.TextField()
     city = models.CharField(max_length=255, null=True)
@@ -36,7 +35,7 @@ class Branch(AbstractBaseModel):
     phone_number = models.CharField(max_length=20)
     email = models.EmailField(null=True, blank=True)
     status = models.CharField(max_length=255, default="Active")
-    branch_manager = models.OneToOneField('users.User', on_delete=models.SET_NULL, null=True, blank=True, related_name='managed_branch')
+    branch_manager = models.ForeignKey('users.User', on_delete=models.SET_NULL, null=True, blank=True, related_name='managed_branch')
 
     def __str__(self):
         return f"{self.name} - {self.business.name}"

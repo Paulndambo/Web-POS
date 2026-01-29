@@ -1,6 +1,8 @@
 from decimal import Decimal
 from django.db import transaction
 
+from core.mixins import BusinessScopedQuerysetMixin
+
 from invoices.serializers import (
     InvoiceSerializer, InvoiceDetailSerializer, InvoiceItemUpdateSerializer, 
     CreateInvoiceSerializer, CreateInvoiceItemsSerializer, InvoicePaymentSerializer,
@@ -18,7 +20,7 @@ from rest_framework.response import Response
 from payments.models import Payment
 
 # Create your views here.
-class InvoiceAPIView(generics.ListCreateAPIView):
+class InvoiceAPIView(BusinessScopedQuerysetMixin, generics.ListCreateAPIView):
     permission_classes = [IsAuthenticated]
     queryset = Invoice.objects.all().order_by("-created_at")
     serializer_class = InvoiceSerializer
@@ -180,7 +182,7 @@ class InvoicePaymentAPIView(generics.CreateAPIView):
     
 
 
-class SupplierInvoiceAPIView(generics.ListAPIView):
+class SupplierInvoiceAPIView(BusinessScopedQuerysetMixin, generics.ListAPIView):
     permission_classes = [IsAuthenticated]
     queryset = SupplierInvoice.objects.all().order_by("-created_at")
     serializer_class = SupplierInvoiceSerializer

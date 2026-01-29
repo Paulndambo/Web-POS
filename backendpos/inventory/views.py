@@ -5,6 +5,8 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from django.db import transaction
 
+from core.mixins import BusinessScopedQuerysetMixin
+
 from inventory.serializers import (
     InventoryItemSerializer, CategorySerializer,
     MenuSerializer,
@@ -12,7 +14,7 @@ from inventory.serializers import (
 )
 from inventory.models import InventoryItem, Category, Menu, InventoryLog
 # Create your views here.
-class CategoryAPIView(generics.ListCreateAPIView):
+class CategoryAPIView(BusinessScopedQuerysetMixin, generics.ListCreateAPIView):
     queryset = Category.objects.all().order_by("-created_at")
     serializer_class = CategorySerializer
 
@@ -24,7 +26,7 @@ class CategoryDetailAPIView(generics.RetrieveUpdateDestroyAPIView):
     lookup_field = "pk"
 
 
-class InventoryItemAPIView(generics.ListCreateAPIView):
+class InventoryItemAPIView(BusinessScopedQuerysetMixin, generics.ListCreateAPIView):
     queryset = InventoryItem.objects.all().order_by("-created_at")
     serializer_class = InventoryItemSerializer
 
@@ -37,7 +39,7 @@ class InventoryItemDetailAPIView(generics.RetrieveUpdateDestroyAPIView):
 
 
 
-class MenuAPIView(generics.ListCreateAPIView):
+class MenuAPIView(BusinessScopedQuerysetMixin, generics.ListCreateAPIView):
     queryset = Menu.objects.all().order_by("-created_at")
     serializer_class = MenuSerializer
 

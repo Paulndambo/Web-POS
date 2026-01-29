@@ -12,8 +12,10 @@ from rest_framework.permissions import AllowAny, IsAdminUser, IsAuthenticated
 from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 
+from core.mixins import BusinessScopedQuerysetMixin
+
 # Create your views here.
-class PaymentAPIView(generics.ListAPIView):
+class PaymentAPIView(BusinessScopedQuerysetMixin, generics.ListAPIView):
     queryset = Payment.objects.all().order_by("-created_at")
     serializer_class = PaymentSerializer
     permission_classes = [IsAuthenticated]

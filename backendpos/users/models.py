@@ -18,7 +18,7 @@ class User(AbstractUser, AbstractBaseModel):
     status = models.CharField(max_length=255, default="Active")
 
     def __str__(self):
-        return self.username
+        return self.get_full_name() if self.first_name else self.username
     
     def name(self):
         return self.get_full_name()

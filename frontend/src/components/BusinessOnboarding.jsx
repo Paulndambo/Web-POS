@@ -38,6 +38,8 @@ const BusinessOnboarding = ({ onCompleted }) => {
     manager_email: '',
     manager_phone_number: '',
     manager_gender: '',
+    manager_password: '',
+    manager_password_confirm: '',
     // Step 4 - pricing plan
     pricing_plan_id: null,
     selected_pricing_plan: null,
@@ -92,8 +94,16 @@ const BusinessOnboarding = ({ onCompleted }) => {
     }
     if (currentStep === 3) {
       if (!formData.manager_first_name || !formData.manager_last_name || !formData.manager_email || 
-          !formData.manager_phone_number || !formData.manager_gender) {
+          !formData.manager_phone_number || !formData.manager_gender || !formData.manager_password) {
         showError('Please fill in all required manager details.');
+        return false;
+      }
+      if (formData.manager_password !== formData.manager_password_confirm) {
+        showError('Passwords do not match. Please make sure both password fields are the same.');
+        return false;
+      }
+      if (formData.manager_password.length < 6) {
+        showError('Password must be at least 6 characters long.');
         return false;
       }
     }
@@ -147,6 +157,7 @@ const BusinessOnboarding = ({ onCompleted }) => {
             email: formData.manager_email,
             phone_number: formData.manager_phone_number,
             gender: formData.manager_gender,
+            password: formData.manager_password,
           },
           pricing_plan: {
             id: formData.selected_pricing_plan.id,
@@ -424,6 +435,41 @@ const BusinessOnboarding = ({ onCompleted }) => {
                 <option value="Female">Female</option>
                 <option value="Other">Other</option>
               </select>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                  Password<span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="password"
+                  value={formData.manager_password}
+                  onChange={(e) => updateField('manager_password', e.target.value)}
+                  className="w-full px-3 sm:px-4 py-2.5 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none text-sm sm:text-base"
+                  placeholder="Create a password"
+                />
+                <p className="text-xs text-gray-500 mt-1">Must be at least 6 characters</p>
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                  Confirm Password<span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="password"
+                  value={formData.manager_password_confirm}
+                  onChange={(e) => updateField('manager_password_confirm', e.target.value)}
+                  className={`w-full px-3 sm:px-4 py-2.5 border-2 rounded-lg focus:outline-none text-sm sm:text-base ${
+                    formData.manager_password_confirm && formData.manager_password !== formData.manager_password_confirm
+                      ? 'border-red-500 focus:border-red-500'
+                      : 'border-gray-300 focus:border-blue-500'
+                  }`}
+                  placeholder="Re-enter password"
+                />
+                {formData.manager_password_confirm && formData.manager_password !== formData.manager_password_confirm && (
+                  <p className="text-xs text-red-500 mt-1">Passwords do not match</p>
+                )}
+              </div>
             </div>
           </div>
         );

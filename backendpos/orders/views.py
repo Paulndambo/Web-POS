@@ -7,6 +7,8 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 
 
+from core.mixins import BusinessScopedQuerysetMixin
+
 from orders.serializers import (
     PlacePOSOrderSerializer, PayOrderSerializer, 
     OrderSerializer, OrderDetailSerializer,
@@ -15,7 +17,7 @@ from orders.serializers import (
 from orders.models import Order, OrderItem
 from payments.models import Payment
 # Create your views here.
-class OrderAPIView(generics.ListCreateAPIView):
+class OrderAPIView(BusinessScopedQuerysetMixin, generics.ListCreateAPIView):
     queryset = Order.objects.all().order_by("-created_at")
     serializer_class = OrderSerializer
 

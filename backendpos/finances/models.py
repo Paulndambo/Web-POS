@@ -41,3 +41,16 @@ class PricingPlan(AbstractBaseModel):
 
     def __str__(self):
         return self.name
+    
+
+
+class BusinessSubscription(AbstractBaseModel):
+    business = models.ForeignKey("core.Business", on_delete=models.CASCADE)
+    branch = models.ForeignKey("core.Branch", on_delete=models.CASCADE, null=True, blank=True)
+    pricing_plan = models.ForeignKey(PricingPlan, on_delete=models.CASCADE)
+    start_date = models.DateField(auto_now_add=True)
+    end_date = models.DateField()
+    is_active = models.BooleanField(default=True)
+
+    def __str__(self):
+        return f"{self.business.name} - {self.pricing_plan.name}"

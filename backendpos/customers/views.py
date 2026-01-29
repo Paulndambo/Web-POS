@@ -2,6 +2,8 @@ from rest_framework import status, generics
 from rest_framework.response import Response 
 from rest_framework.permissions import IsAuthenticated
 
+from core.mixins import BusinessScopedQuerysetMixin
+
 
 from customers.models import (
     LoyaltyCard, LoyaltyCardRecharge, LoyaltyCardRedeem,
@@ -14,7 +16,7 @@ from customers.serializers import (
 )
 
 # Create your views here.
-class LoyaltyCardAPIView(generics.ListCreateAPIView):
+class LoyaltyCardAPIView(BusinessScopedQuerysetMixin, generics.ListCreateAPIView):
     queryset = LoyaltyCard.objects.all().order_by("-created_at")
     serializer_class = LoyaltyCardSerializer
     permission_classes = [IsAuthenticated]
@@ -72,7 +74,7 @@ class LoyaltyCardUpdateAPIView(generics.CreateAPIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-class GiftCardAPIView(generics.ListCreateAPIView):
+class GiftCardAPIView(BusinessScopedQuerysetMixin, generics.ListCreateAPIView):
     queryset = GiftCard.objects.all().order_by("-created_at")
     serializer_class = GiftCardSerializer
     permission_classes = [IsAuthenticated]

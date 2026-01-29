@@ -6,6 +6,8 @@ from django.utils import timezone
 
 from django.db import transaction
 
+from core.mixins import BusinessScopedQuerysetMixin
+
 from supplychain.models import Supplier, ProductSupplier, SupplyRequest, PurchaseOrder, PurchaseOrderItem
 from supplychain.serializers import (
     SupplierSerializer,
@@ -21,7 +23,7 @@ from supplychain.serializers import (
 from inventory.models import InventoryItem, InventoryLog
 from invoices.models import SupplierInvoice, SupplierInvoiceItem
 # Create your views here.
-class SupplierListCreateView(generics.ListCreateAPIView):
+class SupplierListCreateView( BusinessScopedQuerysetMixin, generics.ListCreateAPIView):
     queryset = Supplier.objects.all()
     serializer_class = SupplierSerializer
     permission_classes = [IsAuthenticated]
@@ -34,7 +36,7 @@ class SupplierRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
     lookup_field = "pk"
 
 
-class ProductSupplierListCreateView(generics.ListCreateAPIView):
+class ProductSupplierListCreateView(BusinessScopedQuerysetMixin, generics.ListCreateAPIView):
     queryset = ProductSupplier.objects.all()
     serializer_class = ProductSupplierSerializer
     permission_classes = [IsAuthenticated]
@@ -66,7 +68,7 @@ class ProductSupplierRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPI
                 product_supplier.product.save(update_fields=["buying_price"])
 
 
-class SupplyRequestListCreateView(generics.ListCreateAPIView):
+class SupplyRequestListCreateView(BusinessScopedQuerysetMixin, generics.ListCreateAPIView):
     queryset = SupplyRequest.objects.all()
     serializer_class = SupplyRequestSerializer
     permission_classes = [IsAuthenticated]
@@ -79,7 +81,7 @@ class SupplyRequestRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIVi
     lookup_field = "pk"
 
 
-class PurchaseOrderListCreateView(generics.ListCreateAPIView):
+class PurchaseOrderListCreateView(BusinessScopedQuerysetMixin, generics.ListCreateAPIView):
     queryset = PurchaseOrder.objects.all()
     serializer_class = PurchaseOrderSerializer
     permission_classes = [IsAuthenticated]
@@ -92,7 +94,7 @@ class PurchaseOrderRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIVi
     lookup_field = "pk"
 
 
-class PurchaseOrderItemListView(generics.ListAPIView):
+class PurchaseOrderItemListView(BusinessScopedQuerysetMixin, generics.ListAPIView):
     queryset = PurchaseOrderItem.objects.filter(status="Pending", purchase_order__status="Completed")
     serializer_class = PurchaseOrderItemSerializer
     permission_classes = [IsAuthenticated]
