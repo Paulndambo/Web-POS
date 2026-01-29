@@ -41,6 +41,29 @@ const ViewSupplierInvoice = () => {
   const [editingDueDate, setEditingDueDate] = useState('');
   const [savingDueDate, setSavingDueDate] = useState(false);
 
+  const generateReferenceNumber = () => {
+    // Generate reference number in format PMR-XXX/YY
+    // Using timestamp-based approach for uniqueness
+    const timestamp = Date.now();
+    const randomNum = Math.floor(Math.random() * 999) + 1;
+    const year = new Date().getFullYear().toString().slice(-2);
+    const month = String(new Date().getMonth() + 1).padStart(2, '0');
+    return `PMR-${String(randomNum).padStart(3, '0')}/${month}${year}`;
+  };
+
+  const formatPaymentMethod = (method) => {
+    // Map frontend payment method values to API-expected format
+    const methodMap = {
+      'cash': 'Cash',
+      'bank_transfer': 'Bank Transfer',
+      'mpesa': 'Mobile Money',
+      'cheque': 'Cheque',
+      'credit_card': 'Credit Card',
+      'other': 'Other'
+    };
+    return methodMap[method] || method;
+  };
+
   const fetchInvoiceDetails = async () => {
     try {
       setLoading(true);
@@ -351,8 +374,8 @@ const ViewSupplierInvoice = () => {
   };
 
   const handleOpenPaymentModal = () => {
-    const totalAmount = parseFloat(invoice.total_amount || 0);
-    setPaymentAmount(totalAmount.toFixed(2));
+    const balanceDue = parseFloat(invoice.balance_due || 0);
+    setPaymentAmount(balanceDue.toFixed(2));
     setShowPaymentModal(true);
   };
 
@@ -363,18 +386,18 @@ const ViewSupplierInvoice = () => {
   };
 
   const handleRecordPayment = async () => {
-    if (!invoice) return;
+    if (!invoice || !id) return;
 
     const amount = parseFloat(paymentAmount);
-    const totalAmount = parseFloat(invoice.total_amount || 0);
+    const balanceDue = parseFloat(invoice.balance_due || 0);
 
     if (!amount || amount <= 0) {
       showWarning('Please enter a valid payment amount');
       return;
     }
 
-    if (amount > totalAmount) {
-      showWarning('Payment amount cannot exceed invoice total');
+    if (amount > balanceDue) {
+      showWarning('Payment amount cannot exceed balance due');
       return;
     }
 
@@ -383,10 +406,10 @@ const ViewSupplierInvoice = () => {
       // Record payment for supplier invoice
       const paymentData = {
         supplier_invoice: invoice.id,
-        amount: amount,
-        payment_method: paymentMethod,
-        date: new Date().toISOString().split('T')[0],
-        status: amount >= totalAmount ? 'Paid' : 'Partial'
+        amount_paid: amount,
+        payment_date: new Date().toISOString().split('T')[0],
+        payment_method: formatPaymentMethod(paymentMethod),
+        reference_number: generateReferenceNumber()
       };
 
       const response = await apiPost('/invoices/supplier-invoice-payment/', paymentData);
@@ -499,6 +522,8 @@ const ViewSupplierInvoice = () => {
   const statusInfo = getStatusBadge(invoice.status);
   const invoiceItems = invoice.invoiceitems || [];
   const totalAmount = parseFloat(invoice.total_amount || 0);
+  const amountPaid = parseFloat(invoice.amount_paid || 0);
+  const balanceExpected = totalAmount - amountPaid;
 
   return (
     <Layout>
@@ -534,24 +559,24 @@ const ViewSupplierInvoice = () => {
                 </button>
               </>
             )}
-            {invoice.status?.toLowerCase() === 'approved' && (
-              <>
-                <button
-                  onClick={() => handleUpdateStatus('Completed')}
-                  disabled={updatingStatus}
-                  className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white px-6 py-3 rounded-lg font-semibold flex items-center justify-center gap-2 shadow-md hover:shadow-lg transition disabled:cursor-not-allowed"
-                >
-                  <CheckCircle size={20} />
-                  Complete
-                </button>
-                <button
-                  onClick={handleOpenPaymentModal}
-                  className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-lg font-semibold flex items-center justify-center gap-2 shadow-md hover:shadow-lg transition"
-                >
-                  <CreditCard size={20} />
-                  Record Payment
-                </button>
-              </>
+            {(invoice.status?.toLowerCase() === 'approved' || invoice.status?.toLowerCase() === 'partially paid' || invoice.status?.toLowerCase() === 'partial') && (
+              <button
+                onClick={handleOpenPaymentModal}
+                className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-lg font-semibold flex items-center justify-center gap-2 shadow-md hover:shadow-lg transition"
+              >
+                <CreditCard size={20} />
+                Record Payment
+              </button>
+            )}
+            {invoice.status?.toLowerCase() === 'paid' && (
+              <button
+                onClick={() => handleUpdateStatus('Completed')}
+                disabled={updatingStatus}
+                className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white px-6 py-3 rounded-lg font-semibold flex items-center justify-center gap-2 shadow-md hover:shadow-lg transition disabled:cursor-not-allowed"
+              >
+                <CheckCircle size={20} />
+                Complete
+              </button>
             )}
             <button
               onClick={fetchInvoiceDetails}
@@ -740,11 +765,25 @@ const ViewSupplierInvoice = () => {
             <div className="border border-gray-200 rounded-lg p-6 bg-gray-50">
               <div className="flex justify-end">
                 <div className="w-full md:w-1/3">
-                  <div className="flex justify-between items-center pt-4 border-t border-gray-300">
-                    <span className="text-lg font-semibold text-gray-700">Total Amount:</span>
-                    <span className="text-2xl font-bold text-gray-900">
-                      {CURRENCY_SYMBOL} {totalAmount.toLocaleString()}
-                    </span>
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-center">
+                      <span className="text-lg font-semibold text-gray-700">Total Amount Expected:</span>
+                      <span className="text-xl font-bold text-gray-900">
+                        {CURRENCY_SYMBOL} {totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-lg font-semibold text-gray-700">Amount Paid:</span>
+                      <span className="text-xl font-bold text-green-600">
+                        {CURRENCY_SYMBOL} {amountPaid.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center pt-4 border-t border-gray-300">
+                      <span className="text-lg font-semibold text-gray-700">Balance Expected:</span>
+                      <span className={`text-2xl font-bold ${balanceExpected > 0 ? 'text-red-600' : balanceExpected < 0 ? 'text-blue-600' : 'text-gray-900'}`}>
+                        {CURRENCY_SYMBOL} {balanceExpected.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -788,9 +827,9 @@ const ViewSupplierInvoice = () => {
                 </div>
 
                 <div className="bg-gray-50 p-4 rounded-lg">
-                  <div className="text-sm text-gray-600 mb-1">Total Amount</div>
+                  <div className="text-sm text-gray-600 mb-1">Amount Expected</div>
                   <div className="text-xl font-bold text-gray-800">
-                    {CURRENCY_SYMBOL} {parseFloat(invoice.total_amount || 0).toLocaleString()}
+                    {CURRENCY_SYMBOL} {parseFloat(invoice.balance_due || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </div>
                 </div>
 
@@ -802,7 +841,7 @@ const ViewSupplierInvoice = () => {
                     type="number"
                     step="0.01"
                     min="0"
-                    max={invoice.total_amount}
+                    max={invoice.balance_due || invoice.total_amount}
                     value={paymentAmount}
                     onChange={(e) => setPaymentAmount(e.target.value)}
                     className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none text-lg font-semibold"

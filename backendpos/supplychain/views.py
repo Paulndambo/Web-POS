@@ -126,6 +126,8 @@ class PurchaseOrderItemCreateView(generics.CreateAPIView):
             item_total = product_supplier.cost_price * quantity if product_supplier else product.buying_price * quantity
 
             PurchaseOrderItem.objects.create(
+                business=purchase_order.business,
+                branch=purchase_order.branch,
                 purchase_order=purchase_order,
                 product=product,
                 quantity=quantity,
@@ -228,7 +230,7 @@ class ReceivePurchaseOrderItemView(generics.CreateAPIView):
                 branch=purchase_order.branch,
                 item=poi.product,
                 quantity=received_quantity,
-                action="Received",
+                action_type="Stock Received",
                 actioned_by=request.user
             )
 
@@ -246,6 +248,8 @@ class ReceivePurchaseOrderItemView(generics.CreateAPIView):
 
             item_total = poi.unit_cost * received_quantity
             SupplierInvoiceItem.objects.create(
+                business=request.business,
+                branch=request.branch,
                 invoice=supplier_invoice,
                 product=poi.product,
                 quantity=received_quantity,

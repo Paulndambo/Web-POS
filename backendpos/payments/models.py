@@ -28,35 +28,15 @@ class Payment(AbstractBaseModel):
 
 
 class BusinessLedger(AbstractBaseModel):
-
-    class Source(models.TextChoices):
-        ORDER = "ORDER", "Order"
-        INVOICE = "INVOICE", "Invoice"
-        PAYMENT = "PAYMENT", "Payment"
-        EXPENSE = "EXPENSE", "Expense"
-        ADJUSTMENT = "ADJUSTMENT", "Adjustment"
-
-    class RecordType(models.TextChoices):
-        DEBIT = "DEBIT", "Debit"
-        CREDIT = "CREDIT", "Credit"
-
-    class Reason(models.TextChoices):
-        SALE = "SALE", "Sale"
-        REFUND = "REFUND", "Refund"
-        PAYMENT_RECEIVED = "PAYMENT_RECEIVED", "Payment Received"
-        EXPENSE_PAID = "EXPENSE_PAID", "Expense Paid"
-        WRITE_OFF = "WRITE_OFF", "Write-off"
-        MANUAL_ADJUSTMENT = "MANUAL_ADJUSTMENT", "Manual Adjustment"
-
     business = models.ForeignKey("core.Business", on_delete=models.SET_NULL, null=True, related_name="ledgers")
     branch = models.ForeignKey("core.Branch", on_delete=models.SET_NULL, null=True, related_name="ledgers")
-    source = models.CharField(max_length=20, choices=Source.choices, null=True, blank=True)
-    record_type = models.CharField(max_length=10, choices=RecordType.choices)
+    source = models.CharField(max_length=20, null=True, blank=True)
+    record_type = models.CharField(max_length=10, choices=[("Debit", "Debit"), ("Credit", "Credit")])
     date = models.DateField(db_index=True)
-    description = models.CharField(max_length=255)
-    reason = models.CharField(max_length=30, choices=Reason.choices, null=True, blank=True)
+    reason = models.CharField(max_length=30, null=True, blank=True)
     debit = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
     credit = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
+    description = models.TextField(null=True, blank=True)
 
     class Meta:
         ordering = ["date", "created_at"]
@@ -93,8 +73,7 @@ class BusinessLedger(AbstractBaseModel):
 
     def __str__(self):
         return (
-            f"{self.date} | {self.record_type} | "
-            f"{self.amount} | {self.description}"
+            f"{self.date} | {self.record_type}"
         )
 
 

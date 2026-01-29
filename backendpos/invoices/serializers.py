@@ -1,6 +1,7 @@
 from decimal import Decimal
 from rest_framework import serializers
 from invoices.models import Invoice, InvoiceItem, SupplierInvoice, SupplierInvoiceItem
+from payments.models import SupplierPayment
 
 class InvoiceItemSerializer(serializers.ModelSerializer):
     item_name = serializers.SerializerMethodField()
@@ -112,6 +113,16 @@ class SupplierInvoiceDetailSerializer(serializers.ModelSerializer):
     branch_name = serializers.CharField(source='branch.name', read_only=True)
     business_name = serializers.CharField(source='business.name', read_only=True)
     supplier_name = serializers.CharField(source='supplier.name', read_only=True)
+    balance_due = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
     class Meta:
         model = SupplierInvoice
         fields = "__all__"
+
+
+
+class SupplierInvoicePaymentSerializer(serializers.Serializer):
+    supplier_invoice = serializers.IntegerField()
+    amount_paid = serializers.DecimalField(max_digits=100, decimal_places=2)
+    payment_date = serializers.DateField()
+    payment_method = serializers.CharField(max_length=255)
+    reference_number = serializers.CharField(max_length=255)

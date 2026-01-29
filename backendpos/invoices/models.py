@@ -50,6 +50,7 @@ class SupplierInvoice(AbstractBaseModel):
     invoice_date = models.DateField()
     due_date = models.DateField(null=True)
     total_amount = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0'))
+    amount_paid = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0'))
     status = models.CharField(max_length=50, default="Unpaid")
 
     def __str__(self):
@@ -59,6 +60,11 @@ class SupplierInvoice(AbstractBaseModel):
     def refresh_total_amount(self):
         self.total_amount = sum(self.invoiceitems.values_list("item_total", flat=True))
         self.save()
+
+
+    @property
+    def balance_due(self):
+        return self.total_amount - self.amount_paid
     
 
 class SupplierInvoiceItem(AbstractBaseModel):

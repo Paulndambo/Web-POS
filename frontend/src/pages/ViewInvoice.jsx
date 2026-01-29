@@ -295,27 +295,29 @@ const ViewInvoice = () => {
 
     const backendPaymentData = {
       invoice: parseInt(id),
-      subtotal: invoice.subtotal || 0,
-      tax: invoice.tax || 0,
-      total_amount: invoice.total || 0,
-      amountReceived: finalPaymentAmount,
-      paymentMethod: paymentData.paymentMethod === 'cash+mpesa' ? 'cash+mpesa' : paymentData.paymentMethod,
-      mobileNumber: (paymentData.paymentMethod === 'mobile' || paymentData.paymentMethod === 'cash+mpesa') ? (paymentData.mobileNumber || '') : '',
-      mobileNetwork: (paymentData.paymentMethod === 'mobile' || paymentData.paymentMethod === 'cash+mpesa') ? 'Safaricom' : '',
-      splitCashAmount: paymentData.paymentMethod === 'cash+mpesa' ? (paymentData.splitCashAmount || 0) : 0,
-      splitMobileAmount: paymentData.paymentMethod === 'cash+mpesa' ? (paymentData.splitMobileAmount || 0) : 0,
-      date: new Date().toISOString().split('T')[0],
-      change: change,
-      status: paymentStatus,
-      // Include BNPL, Store Credit, and Loyalty Card data if present
-      bnplDownPayment: paymentData.bnplDownPayment,
-      bnplInstallments: paymentData.bnplInstallments,
-      bnplInterval: paymentData.bnplInterval,
-      bnplCustomerId: paymentData.bnplCustomerId,
-      storeCreditUsed: paymentData.storeCreditUsed,
-      storeCreditCustomerId: paymentData.storeCreditCustomerId,
-      loyaltyPointsUsed: paymentData.loyaltyPointsUsed,
-      loyaltyCardNumber: paymentData.loyaltyCardNumber
+      data: {
+        subtotal: invoice.subtotal || 0,
+        tax: invoice.tax || 0,
+        total_amount: invoice.total || 0,
+        amountReceived: finalPaymentAmount,
+        paymentMethod: paymentData.paymentMethod === 'cash+mpesa' ? 'cash+mpesa' : paymentData.paymentMethod,
+        mobileNumber: (paymentData.paymentMethod === 'mobile' || paymentData.paymentMethod === 'cash+mpesa') ? (paymentData.mobileNumber || '') : '',
+        mobileNetwork: (paymentData.paymentMethod === 'mobile' || paymentData.paymentMethod === 'cash+mpesa') ? 'Safaricom' : '',
+        splitCashAmount: paymentData.paymentMethod === 'cash+mpesa' ? (paymentData.splitCashAmount || 0) : 0,
+        splitMobileAmount: paymentData.paymentMethod === 'cash+mpesa' ? (paymentData.splitMobileAmount || 0) : 0,
+        date: new Date().toISOString().split('T')[0],
+        change: change,
+        status: paymentStatus,
+        // Include BNPL, Store Credit, and Loyalty Card data if present
+        bnplDownPayment: paymentData.bnplDownPayment,
+        bnplInstallments: paymentData.bnplInstallments,
+        bnplInterval: paymentData.bnplInterval,
+        customerId: paymentData.customerId,
+        customerName: paymentData.customerName,
+        cardNumber: paymentData.cardNumber,
+        storeCreditUsed: paymentData.storeCreditUsed,
+        loyaltyPointsUsed: paymentData.loyaltyPointsUsed
+      }
     };
 
     try {

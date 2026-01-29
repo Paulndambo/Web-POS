@@ -1,31 +1,30 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
 import Layout from '../components/Layout.jsx';
 import { useGiftCards } from '../contexts/GiftCardsContext.jsx';
 import { 
   Gift, Plus, Edit, X, Save, RefreshCw, Search, CreditCard, 
-  DollarSign, Calendar, CheckCircle, XCircle, TrendingUp, 
-  User, Building2, Receipt, Eye
+  DollarSign, Calendar, CheckCircle, XCircle, 
+  Building2, Receipt
 } from 'lucide-react';
 import { CURRENCY_SYMBOL } from '../config/currency.js';
 import { showSuccess, showWarning, showError } from '../utils/toast.js';
 
 const GiftCards = () => {
-  const navigate = useNavigate();
   const { giftCards, loading, error, issueGiftCard, updateGiftCard, deleteGiftCard, redeemGiftCard, reloadGiftCard, fetchGiftCards } = useGiftCards();
   
   const [searchTerm, setSearchTerm] = useState('');
   const [showModal, setShowModal] = useState(false);
+  const [showMultipleModal, setShowMultipleModal] = useState(false);
   const [showRedeemModal, setShowRedeemModal] = useState(false);
   const [showReloadModal, setShowReloadModal] = useState(false);
   const [editingGiftCard, setEditingGiftCard] = useState(null);
   const [selectedGiftCard, setSelectedGiftCard] = useState(null);
+  const [creatingMultiple, setCreatingMultiple] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
   const [formData, setFormData] = useState({
     cardNumber: '',
-    recipientName: '',
-    recipientEmail: '',
-    recipientPhone: '',
-    initialBalance: '',
+    amount: '',
     balance: '',
     issuer: 'Store', // 'Store' or 'Partner'
     partnerName: '',
@@ -42,16 +41,20 @@ const GiftCards = () => {
     amount: '',
     description: ''
   });
+  const [multipleFormData, setMultipleFormData] = useState({
+    issuer: 'Store',
+    partnerName: '',
+    amount: '',
+    expiryDate: '',
+    numberOfCards: ''
+  });
 
   const handleOpenModal = (giftCard = null) => {
     if (giftCard) {
       setEditingGiftCard(giftCard);
       setFormData({
         cardNumber: giftCard.cardNumber || '',
-        recipientName: giftCard.recipientName || '',
-        recipientEmail: giftCard.recipientEmail || '',
-        recipientPhone: giftCard.recipientPhone || '',
-        initialBalance: giftCard.initialBalance || '',
+        amount: giftCard.amount || '',
         balance: giftCard.balance || '',
         issuer: giftCard.issuer || 'Store',
         partnerName: giftCard.partnerName || '',
@@ -62,10 +65,7 @@ const GiftCards = () => {
       setEditingGiftCard(null);
       setFormData({
         cardNumber: '',
-        recipientName: '',
-        recipientEmail: '',
-        recipientPhone: '',
-        initialBalance: '',
+        amount: '',
         balance: '',
         issuer: 'Store',
         partnerName: '',
@@ -81,10 +81,7 @@ const GiftCards = () => {
     setEditingGiftCard(null);
     setFormData({
       cardNumber: '',
-      recipientName: '',
-      recipientEmail: '',
-      recipientPhone: '',
-      initialBalance: '',
+      amount: '',
       balance: '',
       issuer: 'Store',
       partnerName: '',
@@ -145,8 +142,8 @@ const GiftCards = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    if (!editingGiftCard && !formData.initialBalance) {
-      showWarning('Please enter an initial balance');
+    if (!editingGiftCard && !formData.amount) {
+      showWarning('Please enter an amount');
       return;
     }
 
@@ -156,11 +153,11 @@ const GiftCards = () => {
         await updateGiftCard(editingGiftCard.id, formData);
         showSuccess(`Gift card "${editingGiftCard.cardNumber}" updated successfully!`);
       } else {
-        const balance = parseFloat(formData.initialBalance);
+        const balance = parseFloat(formData.amount);
         await issueGiftCard({
           ...formData,
           balance: balance,
-          initialBalance: balance
+          amount: balance
         });
         showSuccess(`Gift card issued successfully!`);
       }
@@ -213,6 +210,84 @@ const GiftCards = () => {
     }
   };
 
+  const handleOpenMultipleModal = () => {
+    setMultipleFormData({
+      issuer: 'Store',
+      partnerName: '',
+      amount: '',
+      expiryDate: '',
+      numberOfCards: ''
+    });
+    setShowMultipleModal(true);
+  };
+
+  const handleCloseMultipleModal = () => {
+    setShowMultipleModal(false);
+    setMultipleFormData({
+      issuer: 'Store',
+      partnerName: '',
+      amount: '',
+      expiryDate: '',
+      numberOfCards: ''
+    });
+  };
+
+  const handleMultipleSubmit = async (e) => {
+    e.preventDefault();
+    
+    if (!multipleFormData.amount || !multipleFormData.numberOfCards) {
+      showWarning('Please fill in all required fields');
+      return;
+    }
+
+    if (multipleFormData.issuer === 'Partner' && !multipleFormData.partnerName) {
+      showWarning('Please enter partner name');
+      return;
+    }
+
+    const numberOfCards = parseInt(multipleFormData.numberOfCards);
+    if (numberOfCards < 1 || numberOfCards > 100) {
+      showWarning('Number of cards must be between 1 and 100');
+      return;
+    }
+
+    try {
+      setCreatingMultiple(true);
+      const amount = parseFloat(multipleFormData.amount);
+      let successCount = 0;
+      let errorCount = 0;
+
+      for (let i = 0; i < numberOfCards; i++) {
+        try {
+          await issueGiftCard({
+            issuer: multipleFormData.issuer,
+            partnerName: multipleFormData.partnerName || null,
+            amount: amount,
+            balance: amount,
+            expiryDate: multipleFormData.expiryDate || null,
+            status: 'Active'
+          });
+          successCount++;
+        } catch (error) {
+          console.error(`Error creating gift card ${i + 1}:`, error);
+          errorCount++;
+        }
+      }
+
+      if (successCount > 0) {
+        showSuccess(`Successfully created ${successCount} gift card${successCount > 1 ? 's' : ''}${errorCount > 0 ? ` (${errorCount} failed)` : ''}`);
+      } else {
+        showError('Failed to create any gift cards');
+      }
+
+      handleCloseMultipleModal();
+    } catch (error) {
+      showError(error.message || 'Failed to create multiple gift cards');
+    } finally {
+      setCreatingMultiple(false);
+    }
+  };
+
   const getStatusBadge = (status) => {
     if (status?.toLowerCase() === 'active') {
       return 'bg-green-100 text-green-700';
@@ -230,16 +305,34 @@ const GiftCards = () => {
 
   // Filter gift cards based on search term
   const filteredGiftCards = giftCards.filter(giftCard => 
-    giftCard.cardNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    giftCard.recipientName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    giftCard.recipientEmail?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    giftCard.recipientPhone?.includes(searchTerm)
+    giftCard.cardNumber?.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  // Pagination calculations
+  const totalPages = Math.ceil(filteredGiftCards.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedGiftCards = filteredGiftCards.slice(startIndex, endIndex);
+
+  // Reset to page 1 when search term changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm]);
 
   const totalGiftCards = giftCards.length;
   const totalValue = giftCards.reduce((sum, gc) => sum + (gc.balance || 0), 0);
   const activeGiftCards = giftCards.filter(gc => gc.status === 'Active' && !isExpired(gc.expiryDate)).length;
   const expiredGiftCards = giftCards.filter(gc => isExpired(gc.expiryDate)).length;
+
+  const handlePageChange = (page) => {
+    setCurrentPage(page);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleItemsPerPageChange = (e) => {
+    setItemsPerPage(parseInt(e.target.value));
+    setCurrentPage(1);
+  };
 
   return (
     <Layout>
@@ -256,6 +349,13 @@ const GiftCards = () => {
             >
               <Plus size={20} />
               Issue Gift Card
+            </button>
+            <button
+              onClick={handleOpenMultipleModal}
+              className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-lg font-semibold flex items-center justify-center gap-2 shadow-md hover:shadow-lg transition"
+            >
+              <Gift size={20} />
+              Create Multiple
             </button>
             <button
               onClick={fetchGiftCards}
@@ -324,7 +424,7 @@ const GiftCards = () => {
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
             <input
               type="text"
-              placeholder="Search by card number, recipient name, email, or phone..."
+              placeholder="Search by card number..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-10 pr-4 py-3 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
@@ -358,9 +458,6 @@ const GiftCards = () => {
                     Card Number
                   </th>
                   <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                    Recipient
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                     Balance
                   </th>
                   <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
@@ -380,12 +477,12 @@ const GiftCards = () => {
               <tbody className="divide-y divide-gray-200">
                 {filteredGiftCards.length === 0 ? (
                   <tr>
-                    <td colSpan="7" className="px-6 py-8 text-center text-gray-500">
+                    <td colSpan="6" className="px-6 py-8 text-center text-gray-500">
                       {searchTerm ? 'No gift cards found matching your search.' : 'No gift cards found. Issue your first gift card to get started.'}
                     </td>
                   </tr>
                 ) : (
-                  filteredGiftCards.map((giftCard) => {
+                  paginatedGiftCards.map((giftCard) => {
                     const expired = isExpired(giftCard.expiryDate);
                     const effectiveStatus = expired ? 'Expired' : giftCard.status;
                     return (
@@ -396,26 +493,10 @@ const GiftCards = () => {
                             <span className="text-sm font-mono text-gray-800">{giftCard.cardNumber}</span>
                           </div>
                         </td>
-                        <td className="px-6 py-4">
-                          <div className="min-w-0">
-                            <div className="font-semibold text-gray-800">{giftCard.recipientName || 'N/A'}</div>
-                            {giftCard.recipientEmail && (
-                              <div className="text-xs text-gray-500">{giftCard.recipientEmail}</div>
-                            )}
-                            {giftCard.recipientPhone && (
-                              <div className="text-xs text-gray-500">{giftCard.recipientPhone}</div>
-                            )}
-                          </div>
-                        </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className={`text-sm font-bold ${giftCard.balance > 0 ? 'text-green-600' : 'text-gray-400'}`}>
                             {CURRENCY_SYMBOL} {(giftCard.balance || 0).toLocaleString()}
                           </div>
-                          {giftCard.initialBalance && (
-                            <div className="text-xs text-gray-500">
-                              Initial: {CURRENCY_SYMBOL} {giftCard.initialBalance.toLocaleString()}
-                            </div>
-                          )}
                         </td>
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-2">
@@ -449,31 +530,6 @@ const GiftCards = () => {
                         <td className="px-6 py-4 whitespace-nowrap text-center">
                           <div className="flex items-center justify-center gap-2">
                             <button
-                              onClick={() => navigate(`/gift-card/${giftCard.id}`)}
-                              className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition"
-                              title="View Details"
-                            >
-                              <Eye size={18} />
-                            </button>
-                            {giftCard.balance > 0 && effectiveStatus === 'Active' && (
-                              <button
-                                onClick={() => handleOpenRedeemModal(giftCard)}
-                                className="p-2 text-orange-600 hover:bg-orange-50 rounded-lg transition"
-                                title="Redeem"
-                              >
-                                <DollarSign size={18} />
-                              </button>
-                            )}
-                            {effectiveStatus === 'Active' && (
-                              <button
-                                onClick={() => handleOpenReloadModal(giftCard)}
-                                className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition"
-                                title="Reload"
-                              >
-                                <TrendingUp size={18} />
-                              </button>
-                            )}
-                            <button
                               onClick={() => handleOpenModal(giftCard)}
                               className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition"
                               title="Edit"
@@ -490,6 +546,90 @@ const GiftCards = () => {
             </table>
           </div>
         </div>
+        )}
+
+        {/* Pagination */}
+        {!loading && filteredGiftCards.length > 0 && (
+          <div className="bg-white rounded-xl shadow-md p-4 mt-6">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+              {/* Items per page selector */}
+              <div className="flex items-center gap-2">
+                <label className="text-sm text-gray-600">Items per page:</label>
+                <select
+                  value={itemsPerPage}
+                  onChange={handleItemsPerPageChange}
+                  className="px-3 py-1 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none text-sm"
+                >
+                  <option value="10">10</option>
+                  <option value="25">25</option>
+                  <option value="50">50</option>
+                  <option value="100">100</option>
+                </select>
+              </div>
+
+              {/* Pagination info */}
+              <div className="text-sm text-gray-600">
+                Showing {startIndex + 1} to {Math.min(endIndex, filteredGiftCards.length)} of {filteredGiftCards.length} gift card{filteredGiftCards.length !== 1 ? 's' : ''}
+              </div>
+
+              {/* Pagination controls */}
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => handlePageChange(currentPage - 1)}
+                  disabled={currentPage === 1}
+                  className="px-4 py-2 border-2 border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition text-sm font-semibold"
+                >
+                  Previous
+                </button>
+                
+                {/* Page numbers */}
+                {totalPages > 0 && (
+                  <div className="flex items-center gap-1">
+                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => {
+                      // Show first page, last page, current page, and pages around current
+                      if (
+                        page === 1 ||
+                        page === totalPages ||
+                        (page >= currentPage - 1 && page <= currentPage + 1)
+                      ) {
+                        return (
+                          <button
+                            key={page}
+                            onClick={() => handlePageChange(page)}
+                            className={`px-3 py-2 rounded-lg text-sm font-semibold transition ${
+                              currentPage === page
+                                ? 'bg-blue-600 text-white'
+                                : 'border-2 border-gray-300 hover:bg-gray-50 text-gray-700'
+                            }`}
+                          >
+                            {page}
+                          </button>
+                        );
+                      } else if (
+                        page === currentPage - 2 ||
+                        page === currentPage + 2
+                      ) {
+                        return (
+                          <span key={page} className="px-2 text-gray-500">
+                            ...
+                          </span>
+                        );
+                      }
+                      return null;
+                    })}
+                  </div>
+                )}
+
+                <button
+                  onClick={() => handlePageChange(currentPage + 1)}
+                  disabled={currentPage === totalPages}
+                  className="px-4 py-2 border-2 border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition text-sm font-semibold"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          </div>
         )}
 
         {/* Issue/Edit Gift Card Modal */}
@@ -567,76 +707,36 @@ const GiftCards = () => {
                   </div>
                 )}
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      Recipient Name
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.recipientName}
-                      onChange={(e) => setFormData({ ...formData, recipientName: e.target.value })}
-                      className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      Recipient Email
-                    </label>
-                    <input
-                      type="email"
-                      value={formData.recipientEmail}
-                      onChange={(e) => setFormData({ ...formData, recipientEmail: e.target.value })}
-                      className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      Recipient Phone
-                    </label>
-                    <input
-                      type="tel"
-                      value={formData.recipientPhone}
-                      onChange={(e) => setFormData({ ...formData, recipientPhone: e.target.value })}
-                      className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      {editingGiftCard ? 'Balance' : 'Initial Balance'} *
-                    </label>
-                    {editingGiftCard ? (
-                      <>
-                        <input
-                          type="number"
-                          step="0.01"
-                          value={formData.balance}
-                          className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg bg-gray-100 cursor-not-allowed"
-                          disabled
-                          readOnly
-                        />
-                        <p className="text-xs text-gray-500 mt-1">This field cannot be edited. Use reload/redeem actions to modify balance.</p>
-                      </>
-                    ) : (
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    {editingGiftCard ? 'Balance' : 'Amount'} *
+                  </label>
+                  {editingGiftCard ? (
+                    <>
                       <input
                         type="number"
                         step="0.01"
-                        value={formData.initialBalance}
-                        onChange={(e) => setFormData({ 
-                          ...formData, 
-                          initialBalance: e.target.value 
-                        })}
-                        className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
-                        min="0"
-                        required
+                        value={formData.balance}
+                        className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg bg-gray-100 cursor-not-allowed"
+                        disabled
+                        readOnly
                       />
-                    )}
-                  </div>
+                      <p className="text-xs text-gray-500 mt-1">This field cannot be edited. Use reload/redeem actions to modify balance.</p>
+                    </>
+                  ) : (
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={formData.amount}
+                      onChange={(e) => setFormData({ 
+                        ...formData, 
+                        amount: e.target.value 
+                      })}
+                      className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
+                      min="0"
+                      required
+                    />
+                  )}
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -780,6 +880,147 @@ const GiftCards = () => {
                     className="flex-1 bg-orange-600 hover:bg-orange-700 text-white py-2 rounded-lg font-semibold transition"
                   >
                     Redeem
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Create Multiple Gift Cards Modal */}
+        {showMultipleModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-y-auto">
+            <div className="bg-white rounded-lg p-6 max-w-2xl w-full my-auto max-h-[95vh] overflow-y-auto">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-2xl font-bold text-gray-800">
+                  Create Multiple Gift Cards
+                </h2>
+                <button
+                  onClick={handleCloseMultipleModal}
+                  className="text-gray-500 hover:text-gray-700"
+                  disabled={creatingMultiple}
+                >
+                  <X size={24} />
+                </button>
+              </div>
+
+              <form onSubmit={handleMultipleSubmit} className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Issuer *
+                    </label>
+                    <select
+                      value={multipleFormData.issuer}
+                      onChange={(e) => setMultipleFormData({ ...multipleFormData, issuer: e.target.value, partnerName: e.target.value === 'Store' ? '' : multipleFormData.partnerName })}
+                      className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
+                      required
+                      disabled={creatingMultiple}
+                    >
+                      <option value="Store">Store</option>
+                      <option value="Partner">Partner</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Amount per Gift Card *
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={multipleFormData.amount}
+                      onChange={(e) => setMultipleFormData({ ...multipleFormData, amount: e.target.value })}
+                      className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
+                      min="0"
+                      required
+                      disabled={creatingMultiple}
+                      placeholder="Enter amount"
+                    />
+                  </div>
+                </div>
+
+                {multipleFormData.issuer === 'Partner' && (
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Partner Name *
+                    </label>
+                    <input
+                      type="text"
+                      value={multipleFormData.partnerName}
+                      onChange={(e) => setMultipleFormData({ ...multipleFormData, partnerName: e.target.value })}
+                      className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
+                      required={multipleFormData.issuer === 'Partner'}
+                      disabled={creatingMultiple}
+                      placeholder="Enter partner name"
+                    />
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Expiry Date
+                    </label>
+                    <input
+                      type="date"
+                      value={multipleFormData.expiryDate}
+                      onChange={(e) => setMultipleFormData({ ...multipleFormData, expiryDate: e.target.value })}
+                      className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
+                      disabled={creatingMultiple}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Number of Gift Cards *
+                    </label>
+                    <input
+                      type="number"
+                      value={multipleFormData.numberOfCards}
+                      onChange={(e) => setMultipleFormData({ ...multipleFormData, numberOfCards: e.target.value })}
+                      className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
+                      min="1"
+                      max="100"
+                      required
+                      disabled={creatingMultiple}
+                      placeholder="Enter number of cards (1-100)"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Maximum 100 cards at a time</p>
+                  </div>
+                </div>
+
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <p className="text-sm text-blue-800">
+                    <strong>Note:</strong> This will create {multipleFormData.numberOfCards || 'N'} gift card{multipleFormData.numberOfCards && parseInt(multipleFormData.numberOfCards) > 1 ? 's' : ''} with {multipleFormData.amount ? `${CURRENCY_SYMBOL} ${parseFloat(multipleFormData.amount || 0).toLocaleString()}` : 'the specified amount'} each.
+                  </p>
+                </div>
+
+                <div className="flex gap-3 pt-4">
+                  <button
+                    type="button"
+                    onClick={handleCloseMultipleModal}
+                    disabled={creatingMultiple}
+                    className="flex-1 bg-gray-300 hover:bg-gray-400 disabled:bg-gray-200 text-gray-800 py-2 rounded-lg font-semibold transition"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={creatingMultiple}
+                    className="flex-1 bg-purple-600 hover:bg-purple-700 disabled:bg-purple-400 text-white py-2 rounded-lg font-semibold flex items-center justify-center gap-2 transition"
+                  >
+                    {creatingMultiple ? (
+                      <>
+                        <RefreshCw className="animate-spin" size={18} />
+                        Creating...
+                      </>
+                    ) : (
+                      <>
+                        <Gift size={18} />
+                        Create {multipleFormData.numberOfCards || 'N'} Gift Card{multipleFormData.numberOfCards && parseInt(multipleFormData.numberOfCards) > 1 ? 's' : ''}
+                      </>
+                    )}
                   </button>
                 </div>
               </form>

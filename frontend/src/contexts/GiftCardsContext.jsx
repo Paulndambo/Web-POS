@@ -20,8 +20,8 @@ const transformGiftCardFromBackend = (backendCard) => {
     recipientName: backendCard.customer_name,
     recipientEmail: backendCard.customer_email,
     recipientPhone: backendCard.phone_number,
-    initialBalance: parseFloat(backendCard.initial_balance || 0),
-    balance: parseFloat(backendCard.balance || backendCard.initial_balance || 0),
+    amount: parseFloat(backendCard.amount || 0),
+    balance: parseFloat(backendCard.balance || backendCard.amount || 0),
     issuer: backendCard.issuer || 'Store',
     partnerName: backendCard.partner_name || '',
     expiryDate: backendCard.expiry_date || '',
@@ -40,7 +40,7 @@ const transformGiftCardToBackend = (frontendCard) => {
     phone_number: frontendCard.recipientPhone || frontendCard.phone_number,
     issuer: frontendCard.issuer || 'Store',
     partner_name: frontendCard.partnerName || frontendCard.partner_name || null,
-    initial_balance: parseFloat(frontendCard.initialBalance || frontendCard.initial_balance || 0),
+    amount: parseFloat(frontendCard.amount || 0),
     expiry_date: frontendCard.expiryDate || frontendCard.expiry_date || null,
     status: frontendCard.status || 'Active'
   };
@@ -57,16 +57,44 @@ export const GiftCardsProvider = ({ children }) => {
       setLoading(true);
       setError(null);
       
-      const response = await apiGet('/customers/gift-cards/');
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+      // Support both paginated and non-paginated responses
+      let allCards = [];
+      let nextEndpoint = '/customers/gift-cards/';
+
+      while (nextEndpoint) {
+        const response = await apiGet(nextEndpoint);
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+
+        // If the backend returns a plain array, use it directly and stop
+        if (Array.isArray(data)) {
+          allCards = data;
+          break;
+        }
+
+        // Otherwise, assume a paginated structure with results + next
+        const pageResults = data.results || [];
+        allCards = allCards.concat(pageResults);
+
+        // Handle DRF-style absolute or relative URLs in `next`
+        if (data.next) {
+          try {
+            const nextUrl = new URL(data.next);
+            nextEndpoint = `${nextUrl.pathname}${nextUrl.search}`;
+          } catch {
+            // If it's already a relative URL, use it as-is
+            nextEndpoint = data.next;
+          }
+        } else {
+          nextEndpoint = null;
+        }
       }
-      
-      const data = await response.json();
-      // Handle paginated response or array response
-      const cardsArray = data.results || data || [];
-      const transformedCards = cardsArray.map(transformGiftCardFromBackend);
+
+      const transformedCards = allCards.map(transformGiftCardFromBackend);
       setGiftCards(transformedCards);
     } catch (error) {
       console.error('Error fetching gift cards:', error);
@@ -93,8 +121,8 @@ export const GiftCardsProvider = ({ children }) => {
       const cardData = {
         ...giftCardData,
         cardNumber: giftCardData.cardNumber || generateGiftCardNumber(),
-        initialBalance: parseFloat(giftCardData.initialBalance || giftCardData.balance || 0),
-        balance: parseFloat(giftCardData.balance || giftCardData.initialBalance || 0)
+        amount: parseFloat(giftCardData.amount || giftCardData.balance || 0),
+        balance: parseFloat(giftCardData.balance || giftCardData.amount || 0)
       };
       
       const backendData = transformGiftCardToBackend(cardData);

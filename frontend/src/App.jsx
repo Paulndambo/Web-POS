@@ -22,8 +22,6 @@ import Businesses from './pages/Businesses.jsx';
 import Branches from './pages/Branches.jsx';
 import Users from './pages/Users.jsx';
 import Inventory from './pages/Inventory.jsx';
-import Creditors from './pages/Creditors.jsx';
-import ViewCreditor from './pages/ViewCreditor.jsx';
 import Debtors from './pages/Debtors.jsx';
 import ViewDebtor from './pages/ViewDebtor.jsx';
 import Expenses from './pages/Expenses.jsx';
@@ -43,6 +41,9 @@ import SupplierInvoices from './pages/SupplierInvoices.jsx';
 import ViewSupplierInvoice from './pages/ViewSupplierInvoice.jsx';
 import GoodsReceipt from './pages/GoodsReceipt.jsx';
 import BusinessLedger from './pages/BusinessLedger.jsx';
+import BNPLProviders from './pages/BNPLProviders.jsx';
+import BNPLPurchases from './pages/BNPLPurchases.jsx';
+import ViewBNPLPurchase from './pages/ViewBNPLPurchase.jsx';
 
 function App() {
   return (
@@ -158,22 +159,6 @@ function App() {
                   element={
                     <ProtectedRoute>
                       <Inventory />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/creditors"
-                  element={
-                    <ProtectedRoute>
-                      <Creditors />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/creditor/:id"
-                  element={
-                    <ProtectedRoute>
-                      <ViewCreditor />
                     </ProtectedRoute>
                   }
                 />
@@ -326,6 +311,30 @@ function App() {
                   element={
                     <ProtectedRoute>
                       <GoodsReceipt />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/bnpl-providers"
+                  element={
+                    <ProtectedRoute>
+                      <BNPLProviders />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/bnpl-loans"
+                  element={
+                    <ProtectedRoute>
+                      <BNPLPurchases />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/bnpl-loan/:id"
+                  element={
+                    <ProtectedRoute>
+                      <ViewBNPLPurchase />
                     </ProtectedRoute>
                   }
                 />

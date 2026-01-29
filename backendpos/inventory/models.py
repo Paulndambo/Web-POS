@@ -5,6 +5,7 @@ from core.models import AbstractBaseModel
 
 # Create your models here.
 class Category(AbstractBaseModel):
+    business = models.ForeignKey("core.Business", on_delete=models.SET_NULL, null=True, related_name="businesscategories")
     name = models.CharField(max_length=255)
     description = models.CharField(max_length=255, null=True)
 

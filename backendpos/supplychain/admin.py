@@ -23,3 +23,9 @@ class SupplyRequestAdmin(admin.ModelAdmin):
 class PurchaseOrderAdmin(admin.ModelAdmin):
     list_display = ("id", "supplier", "business", "branch", "order_date", "expected_delivery_date", "status", "total_amount")
     search_fields = ("supplier__name", "status")
+
+
+@admin.register(PurchaseOrderItem)
+class PurchaseOrderItemAdmin(admin.ModelAdmin):
+    list_display = ("id", "business", "purchase_order", "product", "quantity", "unit_cost", "received_quantity")
+    search_fields = ("purchase_order__id", "product__name")

@@ -3,127 +3,119 @@ import { useParams, useNavigate } from 'react-router-dom';
 import Layout from '../components/Layout.jsx';
 import { CURRENCY_SYMBOL } from '../config/currency.js';
 import { 
-  ArrowLeft, Users, Mail, Phone, MapPin, DollarSign, 
+  ArrowLeft, Users, Mail, MapPin, DollarSign, 
   TrendingUp, TrendingDown, Calendar, RefreshCw, AlertCircle,
-  CreditCard, CheckCircle, Clock
+  CreditCard, CheckCircle, Clock, Building2, User, FileText
 } from 'lucide-react';
+import { apiGet } from '../utils/api.js';
+import { useAuth } from '../contexts/AuthContext.jsx';
+import { showError } from '../utils/toast.js';
 
 const ViewDebtor = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { isAuthenticated, loading: authLoading } = useAuth();
   
-  // Dummy debtor data
   const [debtor, setDebtor] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [transactions, setTransactions] = useState([]);
+
+  const fetchDebtorDetails = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const response = await apiGet(`/finances/debtors/${id}/details/`);
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || errorData.message || `HTTP error! status: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      setDebtor(data);
+      
+      // Combine repayments and loanawards into transactions
+      const combinedTransactions = [];
+      
+      // Add loan awards (purchases/loans issued)
+      if (data.loanawards && data.loanawards.length > 0) {
+        data.loanawards.forEach(loan => {
+          combinedTransactions.push({
+            id: `loan-${loan.id}`,
+            type: 'loan',
+            date: loan.issued_at || loan.created_at,
+            reference: `LOAN-${loan.id}`,
+            description: loan.action || 'Loan issued',
+            amount: parseFloat(loan.amount || 0),
+            status: 'completed',
+            performed_by: loan.performed_by
+          });
+        });
+      }
+      
+      // Add repayments (payments received)
+      if (data.repayments && data.repayments.length > 0) {
+        data.repayments.forEach(repayment => {
+          combinedTransactions.push({
+            id: `repayment-${repayment.id}`,
+            type: 'repayment',
+            date: repayment.repayment_date || repayment.created_at,
+            reference: `REP-${repayment.id}`,
+            description: `Repayment via ${repayment.channel}`,
+            amount: parseFloat(repayment.amount || 0),
+            status: 'completed',
+            channel: repayment.channel,
+            received_by: repayment.received_by
+          });
+        });
+      }
+      
+      // Sort by date (newest first)
+      combinedTransactions.sort((a, b) => {
+        const dateA = new Date(a.date);
+        const dateB = new Date(b.date);
+        return dateB - dateA;
+      });
+      
+      setTransactions(combinedTransactions);
+    } catch (error) {
+      console.error('Error fetching debtor details:', error);
+      setError(error.message);
+      showError(`Failed to load debtor details: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    // Simulate API call
-    setTimeout(() => {
-      const dummyDebtor = {
-        id: parseInt(id),
-        name: 'John Kamau',
-        email: 'john.kamau@email.com',
-        phone: '+254 712 345 678',
-        address: '123 Westlands, Nairobi',
-        balance: 15000,
-        credit_limit: 50000,
-        status: 'Active',
-        total_purchases: 85000,
-        total_payments: 70000,
-        last_transaction_date: '2024-01-15'
-      };
-      setDebtor(dummyDebtor);
+    if (!authLoading && isAuthenticated && id) {
+      fetchDebtorDetails();
+    } else if (!authLoading && !isAuthenticated) {
       setLoading(false);
-    }, 500);
-  }, [id]);
-
-  // Dummy transaction logs (combined purchases and payments)
-  const [transactions] = useState([
-    {
-      id: 1,
-      type: 'purchase',
-      date: '2024-01-15',
-      reference: 'INV-2024-001',
-      description: 'Electronics purchase - Invoice',
-      amount: 8000,
-      balance_after: 15000,
-      status: 'pending'
-    },
-    {
-      id: 2,
-      type: 'payment',
-      date: '2024-01-10',
-      reference: 'PMT-2024-005',
-      description: 'Payment received via M-Pesa',
-      amount: 5000,
-      balance_after: 7000,
-      status: 'completed',
-      payment_method: 'M-Pesa'
-    },
-    {
-      id: 3,
-      type: 'purchase',
-      date: '2024-01-08',
-      reference: 'INV-2024-002',
-      description: 'Grocery items - Invoice',
-      amount: 4500,
-      balance_after: 12000,
-      status: 'pending'
-    },
-    {
-      id: 4,
-      type: 'payment',
-      date: '2024-01-05',
-      reference: 'PMT-2024-004',
-      description: 'Partial payment - Cash',
-      amount: 3000,
-      balance_after: 7500,
-      status: 'completed',
-      payment_method: 'Cash'
-    },
-    {
-      id: 5,
-      type: 'purchase',
-      date: '2024-01-03',
-      reference: 'INV-2024-003',
-      description: 'Office supplies - Invoice',
-      amount: 6500,
-      balance_after: 10500,
-      status: 'pending'
-    },
-    {
-      id: 6,
-      type: 'payment',
-      date: '2023-12-28',
-      reference: 'PMT-2023-112',
-      description: 'Monthly settlement via Bank Transfer',
-      amount: 10000,
-      balance_after: 4000,
-      status: 'completed',
-      payment_method: 'Bank Transfer'
-    },
-    {
-      id: 7,
-      type: 'purchase',
-      date: '2023-12-20',
-      reference: 'INV-2023-098',
-      description: 'Hardware equipment - Invoice',
-      amount: 12000,
-      balance_after: 14000,
-      status: 'pending'
-    },
-    {
-      id: 8,
-      type: 'payment',
-      date: '2023-12-15',
-      reference: 'PMT-2023-105',
-      description: 'Payment received - Cash',
-      amount: 2000,
-      balance_after: 2000,
-      status: 'completed',
-      payment_method: 'Cash'
     }
-  ]);
+  }, [authLoading, isAuthenticated, id]);
+
+  const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleDateString();
+    } catch {
+      return dateString;
+    }
+  };
+
+  const formatDateTime = (dateString) => {
+    if (!dateString) return 'N/A';
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleString();
+    } catch {
+      return dateString;
+    }
+  };
 
   if (loading) {
     return (
@@ -138,13 +130,13 @@ const ViewDebtor = () => {
     );
   }
 
-  if (!debtor) {
+  if (error || !debtor) {
     return (
       <Layout>
         <div className="text-center py-12">
           <AlertCircle className="mx-auto mb-4 text-red-600" size={48} />
           <h2 className="text-2xl font-bold text-gray-800 mb-2">Debtor Not Found</h2>
-          <p className="text-gray-600 mb-6">The debtor you're looking for doesn't exist.</p>
+          <p className="text-gray-600 mb-6">{error || 'The debtor you\'re looking for doesn\'t exist.'}</p>
           <button
             onClick={() => navigate('/debtors')}
             className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-semibold"
@@ -155,8 +147,6 @@ const ViewDebtor = () => {
       </Layout>
     );
   }
-
-  const creditUtilization = (debtor.balance / debtor.credit_limit) * 100;
 
   return (
     <Layout>
@@ -173,16 +163,16 @@ const ViewDebtor = () => {
           
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
-              <h1 className="text-3xl font-bold text-gray-800 mb-2">{debtor.name}</h1>
+              <h1 className="text-3xl font-bold text-gray-800 mb-2">{debtor.customer_name || 'N/A'}</h1>
               <p className="text-gray-600">Customer Account Details</p>
             </div>
             <div className="flex gap-3">
-              <button className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-semibold flex items-center gap-2 shadow-md hover:shadow-lg transition">
-                <DollarSign size={20} />
-                Record Payment
-              </button>
-              <button className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-semibold flex items-center gap-2 shadow-md hover:shadow-lg transition">
-                <RefreshCw size={20} />
+              <button 
+                onClick={fetchDebtorDetails}
+                disabled={loading}
+                className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white px-6 py-3 rounded-lg font-semibold flex items-center gap-2 shadow-md hover:shadow-lg transition"
+              >
+                <RefreshCw size={20} className={loading ? 'animate-spin' : ''} />
                 Refresh
               </button>
             </div>
@@ -201,54 +191,61 @@ const ViewDebtor = () => {
               <p className="text-sm text-gray-600 mb-1">Email</p>
               <p className="text-gray-800 font-semibold flex items-center gap-2">
                 <Mail size={16} className="text-gray-400" />
-                {debtor.email}
+                {debtor.customer_email || 'N/A'}
               </p>
             </div>
             
             <div>
-              <p className="text-sm text-gray-600 mb-1">Phone</p>
+              <p className="text-sm text-gray-600 mb-1">Card Number</p>
               <p className="text-gray-800 font-semibold flex items-center gap-2">
-                <Phone size={16} className="text-gray-400" />
-                {debtor.phone}
+                <CreditCard size={16} className="text-gray-400" />
+                {debtor.customer_card_number || 'N/A'}
               </p>
             </div>
             
             <div>
-              <p className="text-sm text-gray-600 mb-1">Address</p>
+              <p className="text-sm text-gray-600 mb-1">Business</p>
+              <p className="text-gray-800 font-semibold flex items-center gap-2">
+                <Building2 size={16} className="text-gray-400" />
+                {debtor.business_name || 'N/A'}
+              </p>
+            </div>
+            
+            <div>
+              <p className="text-sm text-gray-600 mb-1">Branch</p>
               <p className="text-gray-800 font-semibold flex items-center gap-2">
                 <MapPin size={16} className="text-gray-400" />
-                {debtor.address}
+                {debtor.branch_name || 'N/A'}
               </p>
             </div>
             
             <div>
-              <p className="text-sm text-gray-600 mb-1">Status</p>
-              <span className={`inline-flex px-3 py-1 rounded-full text-xs font-semibold ${
-                debtor.status?.toLowerCase() === 'active' 
-                  ? 'bg-green-100 text-green-700' 
-                  : 'bg-gray-100 text-gray-700'
-              }`}>
-                {debtor.status}
-              </span>
+              <p className="text-sm text-gray-600 mb-1">Issued By</p>
+              <p className="text-gray-800 font-semibold flex items-center gap-2">
+                <User size={16} className="text-gray-400" />
+                {debtor.issuer || 'N/A'}
+              </p>
             </div>
             
             <div>
-              <p className="text-sm text-gray-600 mb-1">Last Transaction</p>
+              <p className="text-sm text-gray-600 mb-1">Issued Date</p>
               <p className="text-gray-800 font-semibold flex items-center gap-2">
                 <Calendar size={16} className="text-gray-400" />
-                {new Date(debtor.last_transaction_date).toLocaleDateString()}
+                {formatDate(debtor.issued_date)}
               </p>
             </div>
           </div>
         </div>
 
         {/* Financial Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
           <div className="bg-white rounded-xl shadow-md p-5 border-l-4 border-red-600">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600 mb-1">Outstanding Balance</p>
-                <p className="text-2xl font-bold text-red-600">{CURRENCY_SYMBOL} {debtor.balance.toLocaleString()}</p>
+                <p className="text-sm text-gray-600 mb-1">Outstanding Amount</p>
+                <p className={`text-2xl font-bold ${parseFloat(debtor.outstanding_amount || 0) > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                  {CURRENCY_SYMBOL} {parseFloat(debtor.outstanding_amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </p>
               </div>
               <div className="bg-red-100 p-3 rounded-full">
                 <TrendingUp size={24} className="text-red-600" />
@@ -256,26 +253,16 @@ const ViewDebtor = () => {
             </div>
           </div>
 
-          <div className="bg-white rounded-xl shadow-md p-5 border-l-4 border-blue-600">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600 mb-1">Credit Limit</p>
-                <p className="text-2xl font-bold text-blue-600">{CURRENCY_SYMBOL} {debtor.credit_limit.toLocaleString()}</p>
-              </div>
-              <div className="bg-blue-100 p-3 rounded-full">
-                <CreditCard size={24} className="text-blue-600" />
-              </div>
-            </div>
-          </div>
-
           <div className="bg-white rounded-xl shadow-md p-5 border-l-4 border-purple-600">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600 mb-1">Total Purchases</p>
-                <p className="text-2xl font-bold text-purple-600">{CURRENCY_SYMBOL} {debtor.total_purchases.toLocaleString()}</p>
+                <p className="text-sm text-gray-600 mb-1">Total Amount</p>
+                <p className="text-2xl font-bold text-purple-600">
+                  {CURRENCY_SYMBOL} {parseFloat(debtor.total_amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </p>
               </div>
               <div className="bg-purple-100 p-3 rounded-full">
-                <TrendingUp size={24} className="text-purple-600" />
+                <FileText size={24} className="text-purple-600" />
               </div>
             </div>
           </div>
@@ -283,42 +270,16 @@ const ViewDebtor = () => {
           <div className="bg-white rounded-xl shadow-md p-5 border-l-4 border-green-600">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600 mb-1">Total Payments</p>
-                <p className="text-2xl font-bold text-green-600">{CURRENCY_SYMBOL} {debtor.total_payments.toLocaleString()}</p>
+                <p className="text-sm text-gray-600 mb-1">Amount Paid</p>
+                <p className="text-2xl font-bold text-green-600">
+                  {CURRENCY_SYMBOL} {parseFloat(debtor.amount_paid || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </p>
               </div>
               <div className="bg-green-100 p-3 rounded-full">
                 <TrendingDown size={24} className="text-green-600" />
               </div>
             </div>
           </div>
-        </div>
-
-        {/* Credit Utilization */}
-        <div className="bg-white rounded-xl shadow-md p-6 mb-6">
-          <h2 className="text-xl font-bold text-gray-800 mb-4">Credit Utilization</h2>
-          <div className="mb-2 flex justify-between items-center">
-            <span className="text-sm text-gray-600">
-              {CURRENCY_SYMBOL} {debtor.balance.toLocaleString()} of {CURRENCY_SYMBOL} {debtor.credit_limit.toLocaleString()}
-            </span>
-            <span className="text-sm font-semibold text-gray-800">
-              {creditUtilization.toFixed(1)}%
-            </span>
-          </div>
-          <div className="w-full bg-gray-200 rounded-full h-4">
-            <div
-              className={`h-4 rounded-full transition-all ${
-                creditUtilization > 80 ? 'bg-red-600' : 
-                creditUtilization > 50 ? 'bg-orange-500' : 'bg-green-600'
-              }`}
-              style={{ width: `${Math.min(creditUtilization, 100)}%` }}
-            />
-          </div>
-          {creditUtilization > 80 && (
-            <p className="text-sm text-red-600 mt-2 flex items-center gap-1">
-              <AlertCircle size={16} />
-              Warning: Customer is approaching credit limit
-            </p>
-          )}
         </div>
 
         {/* Transaction History */}
@@ -347,7 +308,7 @@ const ViewDebtor = () => {
                     Amount
                   </th>
                   <th className="px-6 py-4 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                    Balance After
+                    -
                   </th>
                   <th className="px-6 py-4 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">
                     Status
@@ -355,37 +316,44 @@ const ViewDebtor = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {transactions.map((transaction) => (
+                {transactions.length === 0 ? (
+                  <tr>
+                    <td colSpan="7" className="px-6 py-8 text-center text-gray-500">
+                      No transactions found for this debtor.
+                    </td>
+                  </tr>
+                ) : (
+                  transactions.map((transaction) => (
                   <tr key={transaction.id} className="hover:bg-gray-50 transition">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm text-gray-800 flex items-center gap-2">
                         <Calendar size={14} className="text-gray-400" />
-                        {new Date(transaction.date).toLocaleDateString()}
+                        {formatDate(transaction.date)}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold ${
-                        transaction.type === 'purchase' 
+                        transaction.type === 'loan' 
                           ? 'bg-red-100 text-red-700' 
                           : 'bg-green-100 text-green-700'
                       }`}>
-                        {transaction.type === 'purchase' ? (
+                        {transaction.type === 'loan' ? (
                           <>
                             <TrendingUp size={12} />
-                            Purchase
+                            Loan Issued
                           </>
                         ) : (
                           <>
                             <TrendingDown size={12} />
-                            Payment
+                            Repayment
                           </>
                         )}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm font-semibold text-gray-800">{transaction.reference}</div>
-                      {transaction.payment_method && (
-                        <div className="text-xs text-gray-500">{transaction.payment_method}</div>
+                      {transaction.channel && (
+                        <div className="text-xs text-gray-500">{transaction.channel}</div>
                       )}
                     </td>
                     <td className="px-6 py-4">
@@ -393,14 +361,14 @@ const ViewDebtor = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right">
                       <div className={`text-sm font-bold ${
-                        transaction.type === 'purchase' ? 'text-red-600' : 'text-green-600'
+                        transaction.type === 'loan' ? 'text-red-600' : 'text-green-600'
                       }`}>
-                        {transaction.type === 'purchase' ? '+' : '-'} {CURRENCY_SYMBOL} {transaction.amount.toLocaleString()}
+                        {transaction.type === 'loan' ? '+' : '-'} {CURRENCY_SYMBOL} {transaction.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right">
                       <div className="text-sm font-semibold text-gray-800">
-                        {CURRENCY_SYMBOL} {transaction.balance_after.toLocaleString()}
+                        -
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-center">
@@ -423,7 +391,8 @@ const ViewDebtor = () => {
                       </span>
                     </td>
                   </tr>
-                ))}
+                  ))
+                )}
               </tbody>
             </table>
           </div>

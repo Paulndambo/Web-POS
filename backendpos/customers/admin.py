@@ -3,7 +3,7 @@ from customers.models import LoyaltyCard, GiftCard, LoyaltyCardRecharge, Loyalty
 # Register your models here.
 @admin.register(LoyaltyCard)
 class LoyaltyCardAdmin(admin.ModelAdmin):
-    list_display = ["id", "customer_name", "card_number", "points", "created_at"]
+    list_display = ["id", "customer_name", "card_number", "points", "available_credit", "credit_limit", "created_at"]
 
 
 @admin.register(LoyaltyCardRecharge)
@@ -18,7 +18,7 @@ class LoyaltyCardRedeemAdmin(admin.ModelAdmin):
 
 @admin.register(GiftCard)
 class GiftCardAdmin(admin.ModelAdmin):
-    list_display = ["id", "card_number", "issuer", "initial_balance", "created_at"]
+    list_display = ["id", "business", "card_number", "issuer", "amount", "created_at"]
 
 
 @admin.register(GiftCardRedeem)

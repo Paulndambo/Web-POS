@@ -52,6 +52,7 @@ INSTALLED_APPS = [
     "customers",
     "supplychain",
     "finances",
+    "bnpl",
 ]
 
 MIDDLEWARE = [

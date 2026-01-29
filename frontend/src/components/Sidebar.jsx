@@ -10,7 +10,6 @@ import {
   Building2,
   X,
   LogOut,
-  UserCheck,
   Tag,
   UserMinus,
   Receipt,
@@ -27,7 +26,8 @@ import {
   ClipboardList,
   ShoppingBag,
   Link2,
-  BookOpen
+  BookOpen,
+  Wallet
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext.jsx';
 
@@ -75,7 +75,6 @@ const MENU_STRUCTURE = [
     icon: DollarSign,
     type: 'group',
     children: [
-      { path: '/creditors', label: 'Creditors', icon: UserCheck },
       { path: '/debtors', label: 'Debtors', icon: UserMinus },
       { path: '/expenses', label: 'Expenses', icon: Receipt },
       { path: '/payments', label: 'Payments', icon: CreditCard },
@@ -115,6 +114,16 @@ const MENU_STRUCTURE = [
       { path: '/branches', label: 'Branches', icon: Store },
       { path: '/users', label: 'Users', icon: Users },
     ]
+  },
+  {
+    key: 'bnpl',
+    label: 'BNPL',
+    icon: Wallet,
+    type: 'group',
+    children: [
+      { path: '/bnpl-providers', label: 'Providers', icon: Building2 },
+      { path: '/bnpl-loans', label: 'Loans', icon: CreditCard },
+    ]
   }
 ];
 
@@ -129,7 +138,8 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
     finance: false,
     loyalty: false,
     'supply-chain': false,
-    management: false
+    management: false,
+    bnpl: false
   });
 
   // Auto-expand menu based on current path
@@ -139,10 +149,11 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
       sales: ['/pos', '/order'],
       invoices: ['/invoice', '/supplier-invoice'],
       inventory: ['/inventory', '/categories', '/menu'],
-      finance: ['/creditor', '/debtor', '/expense', '/payment'],
+      finance: ['/debtor', '/expense', '/payment'],
       loyalty: ['/customer', '/gift-card'],
       'supply-chain': ['/supplier', '/product-supplier', '/supply-request', '/purchase-order', '/goods-receipt'],
-      management: ['/business', '/branch', '/user']
+      management: ['/business', '/branch', '/user'],
+      bnpl: ['/bnpl-provider', '/bnpl-loan']
     };
 
     Object.entries(menuMapping).forEach(([key, paths]) => {

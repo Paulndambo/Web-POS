@@ -57,6 +57,8 @@ class PurchaseOrder(AbstractBaseModel):
     
     
 class PurchaseOrderItem(AbstractBaseModel):
+    business = models.ForeignKey("core.Business", on_delete=models.SET_NULL, null=True, related_name="businesspurchaseorderitems")
+    branch = models.ForeignKey("core.Branch", on_delete=models.SET_NULL, null=True, related_name="branchpurchaseorderitems")
     purchase_order = models.ForeignKey(PurchaseOrder, on_delete=models.CASCADE, related_name="orderitems")
     product = models.ForeignKey("inventory.InventoryItem", on_delete=models.CASCADE)
     quantity = models.IntegerField(default=1)

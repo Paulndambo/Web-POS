@@ -16,6 +16,12 @@ from orders.serializers import (
 )
 from orders.models import Order, OrderItem
 from payments.models import Payment
+from customers.models import LoyaltyCard
+from finances.models import StoreLoan
+
+from finances.store_loan_mixin import ProcessStoreLoanMixin
+from customers.customer_points_processing import CustomerPointsProcessor, CustomerPointsRedeemer
+from bnpl.bnpl_order_processing import BNPLPurchaseProcessor
 # Create your views here.
 class OrderAPIView(BusinessScopedQuerysetMixin, generics.ListCreateAPIView):
     queryset = Order.objects.all().order_by("-created_at")
@@ -36,49 +42,92 @@ class POSOrderPlacementAPIView(generics.CreateAPIView):
     @transaction.atomic
     def post(self, request, *args, **kwargs):
         data = request.data
+    
         serializer = self.serializer_class(data=data)
+    
         if serializer.is_valid(raise_exception=True):
-            order = Order.objects.create(
-                business=request.user.business,
-                order_number=serializer.validated_data.get("receiptNo"),
-                tax=serializer.validated_data.get("tax"),
-                sub_total=serializer.validated_data.get("subtotal"),
-                total_amount=serializer.validated_data.get("total"),
-                amount_received=serializer.validated_data.get("amountReceived"),
-                status=serializer.validated_data.get("status"),
-                sold_by=request.user
-            )
-            order.status == "Paid" if order.amount_received >= order.total_amount else serializer.validated_data.get("status")
-            order.save()
-            Payment.objects.create(
-                order=order,
-                subtotal=serializer.validated_data.get("subtotal"), 
-                tax=serializer.validated_data.get("tax"), 
-                total=serializer.validated_data.get("total"), 
-                payment_method=serializer.validated_data.get("paymentMethod"), 
-                amount_received=serializer.validated_data.get("amountReceived"), 
-                change=serializer.validated_data.get("change"), 
-                mobile_number=serializer.validated_data.get("mobileNumber"), 
-                mobile_network=serializer.validated_data.get("mobileNetwork"), 
-                split_cash_amount=serializer.validated_data.get("splitCashAmount"), 
-                split_mobile_amount=serializer.validated_data.get("splitMobileAmount"), 
-                status=order.status, 
-                payment_date=serializer.validated_data.get("date"), 
-                receipt_number=serializer.validated_data.get("receiptNo")
-            )
 
-            for x in serializer.validated_data.get("items"):
-                OrderItem.objects.create(
-                    order=order,
+            order_data = serializer.validated_data.get("data")
+
+            print(order_data)
+
+            
+
+            if order_data.get("paymentMethod") == "bnpl":
+                BNPLPurchaseProcessor(
+                    user=request.user,
+                    order_data=order_data
+                ).run()
+            else:
+
+                CustomerPointsProcessor(
+                    card_number=order_data.get("cardNumber"),
+                    amount=order_data.get("total"),
+                    user=request.user
+                ).run()
+
+                CustomerPointsRedeemer(
+                    card_number=order_data.get("cardNumber"),
+                    points_to_redeem=order_data.get("loyaltyPointsUsed"),
+                    user=request.user
+                ).run()
+
+                order = Order.objects.create(
                     business=request.user.business,
-                    inventory_item_id=x["id"],
-                    quantity=x["quantity"],
-                    item_total=x["total_price"]
+                    order_number=order_data.get("receiptNo"),
+                    tax=order_data.get("tax"),
+                    sub_total=order_data.get("subtotal"),
+                    total_amount=order_data.get("total"),
+                    amount_received=order_data.get("amountReceived"),
+                    status=order_data.get("status"),
+                    sold_by=request.user
+                )
+                order.status == "Paid" if order.amount_received >= order.total_amount else order_data.get("status")
+                order.save()
+                Payment.objects.create(
+                    order=order,
+                    subtotal=order_data.get("subtotal"), 
+                    tax=order_data.get("tax"), 
+                    total=order_data.get("total"), 
+                    payment_method=order_data.get("paymentMethod"), 
+                    amount_received=order_data.get("amountReceived"), 
+                    change=order_data.get("change"), 
+                    mobile_number=order_data.get("mobileNumber"), 
+                    mobile_network=order_data.get("mobileNetwork"), 
+                    split_cash_amount=order_data.get("splitCashAmount"), 
+                    split_mobile_amount=order_data.get("splitMobileAmount"), 
+                    status=order.status, 
+                    payment_date=order_data.get("date"), 
+                    receipt_number=order_data.get("receiptNo")
                 )
 
-            for item in order.items.all():
-                item.inventory_item.quantity -= item.quantity
-                item.inventory_item.save()
+                for x in order_data.get("items"):
+                    OrderItem.objects.create(
+                        order=order,
+                        business=request.user.business,
+                        inventory_item_id=x["id"],
+                        quantity=x["quantity"],
+                        item_total=x["total_price"]
+                    )
+
+                for item in order.items.all():
+                    item.inventory_item.quantity -= item.quantity
+                    item.inventory_item.save()
+
+            
+                if order_data.get("paymentMethod") == "store_credit":
+                    loyalty_card_number = order_data.get('cardNumber')
+                    amount = order_data.get("storeCreditUsed")
+
+                    print(f"Loyalty Card Number: {loyalty_card_number}, Amount: {amount}")
+
+                    ProcessStoreLoanMixin(
+                        card_number=loyalty_card_number,
+                        amount=amount,
+                        user=request.user
+                    ).run()
+
+            
             return Response({"success": "Order successfully placed"}, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     

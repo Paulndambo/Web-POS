@@ -438,33 +438,6 @@ const Expenses = () => {
           )}
         </div>
 
-        {/* Category Breakdown */}
-        {expensesByCategory.length > 0 && (
-          <div className="bg-white rounded-xl shadow-md p-6 mb-6">
-            <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
-              <TrendingUp className="text-blue-600" size={24} />
-              Expenses by Category
-            </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {expensesByCategory.map(item => (
-                <div key={item.category} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                  <div className="flex items-center gap-3">
-                    <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getCategoryColor(item.category)}`}>
-                      {item.category}
-                    </span>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm font-bold text-gray-800">{CURRENCY_SYMBOL} {item.total.toLocaleString()}</p>
-                    <p className="text-xs text-gray-500">
-                      {totalExpenses > 0 ? ((item.total / totalExpenses) * 100).toFixed(1) : 0}%
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
         {/* Expenses Table */}
         <div className="bg-white rounded-xl shadow-md overflow-hidden">
           {loading ? (
@@ -496,15 +469,12 @@ const Expenses = () => {
                       <th className="px-6 py-4 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">
                         Amount
                       </th>
-                      <th className="px-6 py-4 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                        Actions
-                      </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200">
                     {filteredExpenses.length === 0 ? (
                       <tr>
-                        <td colSpan="7" className="px-6 py-8 text-center text-gray-500">
+                        <td colSpan="6" className="px-6 py-8 text-center text-gray-500">
                           {searchTerm || activeFiltersCount > 0 
                             ? 'No expenses found matching your search or filters.' 
                             : 'No expenses found. Add your first expense to get started.'}
@@ -543,24 +513,6 @@ const Expenses = () => {
                           <td className="px-6 py-4 whitespace-nowrap text-right">
                             <div className="text-sm font-bold text-red-600">
                               {CURRENCY_SYMBOL} {parseFloat(expense.amount || 0).toLocaleString()}
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-center">
-                            <div className="flex items-center justify-center gap-2">
-                              <button
-                                onClick={() => handleOpenModal(expense)}
-                                className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition"
-                                title="Edit Expense"
-                              >
-                                <Edit size={18} />
-                              </button>
-                              <button
-                                onClick={() => handleDelete(expense.id)}
-                                className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition"
-                                title="Delete Expense"
-                              >
-                                <Trash2 size={18} />
-                              </button>
                             </div>
                           </td>
                         </tr>

@@ -23,6 +23,8 @@ const transformCustomerFromBackend = (backendCustomer) => {
     loyaltyCardNumber: backendCustomer.card_number,
     points: parseFloat(backendCustomer.points || 0),
     totalSpent: parseFloat(backendCustomer.amount_spend || 0),
+    availableCredit: parseFloat(backendCustomer.available_credit || 0),
+    totalStoreCredit: parseFloat(backendCustomer.total_store_credit || 0),
     status: backendCustomer.status || 'Active',
     createdAt: backendCustomer.created_at || backendCustomer.createdAt || new Date().toISOString(),
     transactions: backendCustomer.transactions || []

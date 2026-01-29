@@ -3,18 +3,55 @@ from django.db import models
 from core.models import AbstractBaseModel
 
 # Create your models here.
-class StoreCredit(AbstractBaseModel):
+class StoreLoan(AbstractBaseModel):
+    business = models.ForeignKey("core.Business", on_delete=models.CASCADE, null=True, blank=True)
+    branch = models.ForeignKey("core.Branch", on_delete=models.CASCADE, null=True, blank=True)
     customer = models.ForeignKey("customers.LoyaltyCard", on_delete=models.CASCADE)
-    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    total_amount = models.DecimalField(max_digits=10, decimal_places=2)
+    amount_paid = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     issued_date = models.DateField(auto_now_add=True)
-    expiry_date = models.DateField(null=True, blank=True)
     issued_by = models.ForeignKey("users.User", on_delete=models.SET_NULL, null=True, blank=True)
 
     def __str__(self):
-        return f"Store Credit of {self.amount} for {self.customer}"
+        return f"Store Loan of {self.total_amount} for {self.customer}"
+    
+
+    @property
+    def outstanding_amount(self):
+        return self.total_amount - self.amount_paid
+    
+
+class StoreLoanRepayment(AbstractBaseModel):
+    loan = models.ForeignKey(StoreLoan, on_delete=models.CASCADE, related_name="repayments")
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    repayment_date = models.DateField(auto_now_add=True)
+    received_by = models.ForeignKey("users.User", on_delete=models.SET_NULL, null=True, blank=True)
+    channel = models.CharField(max_length=100, default="Cash", choices=[
+        ("Cash", "Cash"),
+        ("Credit Card", "Credit Card"),
+        ("Bank Transfer", "Bank Transfer"),
+        ("Mobile Money", "Mobile Money"),
+        ("Cheque", "Cheque"),
+    ])
+
+    def __str__(self):
+        return f"Repayment of {self.amount} for Loan ID {self.loan.id}"
+    
+
+class StoreLoanLog(AbstractBaseModel):
+    loan = models.ForeignKey(StoreLoan, on_delete=models.CASCADE, related_name="loanawards")
+    action = models.CharField(max_length=255)
+    amount = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    performed_by = models.ForeignKey("users.User", on_delete=models.SET_NULL, null=True, blank=True)
+    issued_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Log for Loan ID {self.loan.id} - {self.action}"
 
 
 class Expense(AbstractBaseModel):
+    business = models.ForeignKey("core.Business", on_delete=models.CASCADE, null=True, blank=True)
+    branch = models.ForeignKey("core.Branch", on_delete=models.CASCADE, null=True, blank=True)
     description = models.CharField(max_length=255)
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     date_incurred = models.DateField()

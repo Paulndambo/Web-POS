@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from decimal import Decimal
 
+from django.db import models
 from customers.models import LoyaltyCard, LoyaltyCardRecharge, LoyaltyCardRedeem, GiftCard, GiftCardRedeem, GiftCardRecharge
 
 
@@ -24,11 +25,22 @@ class LoyaltyCardSerializer(serializers.ModelSerializer):
 
 
 class LoyaltyCardDetailSerializer(serializers.ModelSerializer):
-    recharges = LoyaltyCardRechargeSerializer(many=True)
-    redeems = LoyaltyCardRedeemSerializer(many=True)
+    branch_name = serializers.CharField(source='branch.name', read_only=True)
+    business_name = serializers.CharField(source='business.name', read_only=True)
+    total_recharged = serializers.SerializerMethodField()
+    total_redeemed = serializers.SerializerMethodField()
+
+
     class Meta:
         model = LoyaltyCard
         fields = "__all__"
+
+    
+    def get_total_recharged(self, obj):
+        return obj.recharges.aggregate(total=models.Sum('amount'))['total'] or Decimal('0')
+    
+    def get_total_redeemed(self, obj):
+        return obj.redeems.aggregate(total=models.Sum('amount'))['total'] or Decimal('0')
 
 class LoyaltyCardUpdateSerializer(serializers.Serializer):
     card_number = serializers.CharField(max_length=255)
@@ -57,8 +69,8 @@ class GiftCardSerializer(serializers.ModelSerializer):
 
 
 class GiftCardDetailSerializer(serializers.ModelSerializer):
-    recharges = GiftCardRechargeSerializer(many=True)
-    redeems = GiftCardRedeemSerializer(many=True)
+    branch_name = serializers.CharField(source='branch.name', read_only=True)
+    business_name = serializers.CharField(source='business.name', read_only=True)
     class Meta:
         model = GiftCard
         fields = "__all__"

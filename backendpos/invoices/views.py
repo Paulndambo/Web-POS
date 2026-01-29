@@ -6,7 +6,7 @@ from core.mixins import BusinessScopedQuerysetMixin
 from invoices.serializers import (
     InvoiceSerializer, InvoiceDetailSerializer, InvoiceItemUpdateSerializer, 
     CreateInvoiceSerializer, CreateInvoiceItemsSerializer, InvoicePaymentSerializer,
-    SupplierInvoiceSerializer, SupplierInvoiceDetailSerializer
+    SupplierInvoiceSerializer, SupplierInvoiceDetailSerializer, SupplierInvoicePaymentSerializer
 )
 from invoices.models import InvoiceItem, Invoice, SupplierInvoice, SupplierInvoiceItem
 from rest_framework.views import APIView
@@ -17,7 +17,7 @@ from django.utils import timezone
 from rest_framework.permissions import AllowAny, IsAdminUser, IsAuthenticated
 from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
-from payments.models import Payment
+from payments.models import Payment, SupplierPayment, BusinessLedger
 
 # Create your views here.
 class InvoiceAPIView(BusinessScopedQuerysetMixin, generics.ListCreateAPIView):
@@ -177,6 +177,7 @@ class InvoicePaymentAPIView(generics.CreateAPIView):
                 receipt_number=invoice.invoice_number,
                 customer_name=invoice.customer_name
             )
+
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
@@ -194,3 +195,49 @@ class SupplierInvoiceDetailAPIView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = SupplierInvoiceDetailSerializer
 
     lookup_field = "pk"
+
+
+
+class SupplierInvoicePaymentAPIView(generics.CreateAPIView):
+    serializer_class = SupplierInvoicePaymentSerializer
+    permission_classes = [IsAuthenticated]
+
+    @transaction.atomic
+    def post(self, request, *args, **kwargs):
+        print(request.data)
+
+        serializer = self.serializer_class(data=request.data)
+        if serializer.is_valid(raise_exception=True):
+
+            supplier_invoice = SupplierInvoice.objects.get(id=serializer.validated_data["supplier_invoice"])
+
+            supplier_invoice.amount_paid += serializer.validated_data.get("amount_paid")
+            supplier_invoice.save()
+
+            supplier_invoice.status = "Paid" if supplier_invoice.amount_paid >= supplier_invoice.total_amount else "Partially Paid"
+            supplier_invoice.save()
+
+            supplier_invoice.refresh_total_amount()
+
+            SupplierPayment.objects.create(
+                supplier_invoice=supplier_invoice,
+                amount_paid=serializer.validated_data.get("amount_paid"),
+                payment_date=serializer.validated_data.get("payment_date"),
+                payment_method=serializer.validated_data.get("payment_method"),
+                reference_number=serializer.validated_data.get("reference_number"),
+                branch=supplier_invoice.branch,
+                business=supplier_invoice.business,
+                supplier=supplier_invoice.supplier
+            )
+
+            BusinessLedger.objects.create(
+                business=supplier_invoice.business,
+                branch=supplier_invoice.branch,
+                record_type="Debit",
+                date=serializer.validated_data.get("payment_date"),
+                reason="Supplier Payment",
+                debit=serializer.validated_data.get("amount_paid"),
+                description=f"Payment for Supplier Invoice {supplier_invoice.invoice_number}"
+            )
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

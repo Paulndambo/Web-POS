@@ -266,13 +266,37 @@ const POS = () => {
       backendPaymentMethod = 'loyalty_card';
     }
 
+    // Calculate BNPL amounts if payment method is BNPL
+    let bnplPerPaymentAmount = null;
+    let bnplRemainingPaymentAmount = null;
+    if (orderData.paymentMethod === 'bnpl') {
+      const totalAmount = parseFloat(orderData.total || 0);
+      const interestRate = parseFloat(orderData.bnplInterestRate || 0);
+      const downPayment = parseFloat(orderData.bnplDownPayment || 0);
+      const installments = parseInt(orderData.bnplInstallments || 0);
+      
+      // Calculate final amount with interest
+      const finalAmount = totalAmount * (1 + interestRate / 100);
+      
+      // Calculate remaining payment amount (final amount minus down payment), rounded up
+      const remaining = finalAmount - downPayment;
+      bnplRemainingPaymentAmount = Math.ceil(remaining);
+      
+      // Calculate per payment amount (remaining divided by installments), rounded up
+      if (installments > 0) {
+        bnplPerPaymentAmount = Math.ceil(remaining / installments);
+      } else {
+        bnplPerPaymentAmount = bnplRemainingPaymentAmount;
+      }
+    }
+
     // Transform items to backend format
     const transformedItems = orderData.items.map(item => ({
       id: item.id,
       item_name: item.name,
       quantity: item.quantity,
-      unit_price: roundMoney(parseFloat(item.price)),
-      total_price: roundMoney(parseFloat(item.price * item.quantity))
+      unit_price: Math.ceil(parseFloat(item.price)),
+      total_price: Math.ceil(parseFloat(item.price * item.quantity))
     }));
 
     // Format date as YYYY-MM-DD
@@ -280,30 +304,39 @@ const POS = () => {
     const formattedDate = dateObj.toISOString().split('T')[0];
 
     return {
-      items: transformedItems,
-      subtotal: roundMoney(parseFloat(orderData.subtotal)),
-      tax: roundMoney(parseFloat(orderData.tax)),
-      total: roundMoneyUpToWhole(parseFloat(orderData.total)), // Round total upwards to whole number
-      paymentMethod: backendPaymentMethod,
-      amountReceived: roundMoney(parseFloat(orderData.amountReceived || 0)),
-      change: roundMoney(parseFloat(orderData.change || 0)),
-      mobileNumber: orderData.mobileNumber || '',
-      mobileNetwork: orderData.mobileNetwork || (orderData.mobileNumber ? 'Safaricom' : ''),
-      splitCashAmount: roundMoney(parseFloat(orderData.splitCashAmount || 0)),
-      splitMobileAmount: roundMoney(parseFloat(orderData.splitMobileAmount || 0)),
-      bnplDownPayment: roundMoney(parseFloat(orderData.bnplDownPayment || 0)),
-      bnplInstallments: orderData.bnplInstallments || null,
-      bnplInterval: orderData.bnplInterval || null,
-      storeCreditUsed: roundMoney(parseFloat(orderData.storeCreditUsed || 0)),
-      storeCreditBalance: roundMoney(parseFloat(orderData.storeCreditBalance || 0)),
-      loyaltyCardNumber: orderData.loyaltyCardNumber || '',
-      loyaltyPointsUsed: parseInt(orderData.loyaltyPointsUsed || 0),
-      loyaltyPointsBalance: parseInt(orderData.loyaltyPointsBalance || 0),
-      loyaltyPointsRate: parseFloat(orderData.loyaltyPointsRate || 1),
-      loyaltyCustomerName: orderData.loyaltyCustomerName || '',
-      status: orderData.status === 'paid' ? 'Paid' : 'Pending',
-      date: formattedDate,
-      receiptNo: orderData.receiptNo.toString()
+      data: {
+        items: transformedItems,
+        subtotal: Math.ceil(parseFloat(orderData.subtotal)),
+        tax: Math.ceil(parseFloat(orderData.tax)),
+        total: Math.ceil(parseFloat(orderData.total)), // Round total upwards to whole number
+        paymentMethod: backendPaymentMethod,
+        amountReceived: Math.ceil(parseFloat(orderData.amountReceived || 0)),
+        change: Math.ceil(parseFloat(orderData.change || 0)),
+        mobileNumber: orderData.mobileNumber || '',
+        mobileNetwork: orderData.mobileNetwork || (orderData.mobileNumber ? 'Safaricom' : ''),
+        splitCashAmount: Math.ceil(parseFloat(orderData.splitCashAmount || 0)),
+        splitMobileAmount: Math.ceil(parseFloat(orderData.splitMobileAmount || 0)),
+        bnplDownPayment: Math.ceil(parseFloat(orderData.bnplDownPayment || 0)),
+        bnplInstallments: orderData.bnplInstallments || null,
+        bnplInterval: orderData.bnplInterval || null,
+        downPaymentMethod: orderData.paymentMethod === 'bnpl' ? (orderData.downPaymentChannel || null) : null,
+        bnplServiceProvider: orderData.paymentMethod === 'bnpl' ? (orderData.bnplProviderId || null) : null,
+        bnplPerPaymentAmount: bnplPerPaymentAmount,
+        bnplRemainingPaymentAmount: bnplRemainingPaymentAmount,
+        customerId: orderData.customerId ? parseInt(orderData.customerId) : 
+                    (orderData.bnplCustomerId ? parseInt(orderData.bnplCustomerId) : 
+                     (orderData.storeCreditCustomerId ? parseInt(orderData.storeCreditCustomerId) : null)),
+        customerName: orderData.customerName || orderData.bnplCustomerName || orderData.storeCreditCustomerName || orderData.loyaltyCustomerName || '',
+        cardNumber: (orderData.cardNumber || orderData.storeCreditCardNumber || orderData.loyaltyCardNumber || '').toString(),
+        storeCreditUsed: Math.ceil(parseFloat(orderData.storeCreditUsed || 0)),
+        storeCreditBalance: Math.ceil(parseFloat(orderData.storeCreditBalance || 0)),
+        loyaltyPointsUsed: parseInt(orderData.loyaltyPointsUsed || 0),
+        loyaltyPointsBalance: parseInt(orderData.loyaltyPointsBalance || 0),
+        loyaltyPointsRate: parseFloat(orderData.loyaltyPointsRate || 1),
+        status: orderData.status === 'paid' ? 'Paid' : 'Pending',
+        date: formattedDate,
+        receiptNo: orderData.receiptNo.toString()
+      }
     };
   };
 

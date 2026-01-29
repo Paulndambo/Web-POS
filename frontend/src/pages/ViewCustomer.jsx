@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import Layout from '../components/Layout.jsx';
 import { apiGet, apiPatch } from '../utils/api.js';
 import { showSuccess, showError } from '../utils/toast.js';
+import { CURRENCY_SYMBOL } from '../config/currency.js';
 import { 
   ArrowLeft, Users, Mail, Phone, MapPin, Star, 
   Calendar, RefreshCw, AlertCircle, CreditCard, TrendingUp, TrendingDown,
@@ -128,9 +129,6 @@ const ViewCustomer = () => {
     );
   }
 
-  const totalRecharges = customer.recharges?.reduce((sum, r) => sum + parseFloat(r.amount || 0), 0) || 0;
-  const totalRedeems = customer.redeems?.reduce((sum, r) => sum + parseFloat(r.amount || 0), 0) || 0;
-  const netPoints = totalRecharges - totalRedeems;
 
   return (
     <Layout>
@@ -313,7 +311,7 @@ const ViewCustomer = () => {
           </div>
         </div>
 
-        {/* Points Summary Cards */}
+        {/* Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           <div className="bg-white rounded-xl shadow-md p-5 border-l-4 border-purple-600">
             <div className="flex items-center justify-between">
@@ -330,8 +328,8 @@ const ViewCustomer = () => {
           <div className="bg-white rounded-xl shadow-md p-5 border-l-4 border-green-600">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600 mb-1">Total Recharges</p>
-                <p className="text-3xl font-bold text-green-600">{totalRecharges.toLocaleString()} pts</p>
+                <p className="text-sm text-gray-600 mb-1">Total Recharged</p>
+                <p className="text-3xl font-bold text-green-600">{parseFloat(customer.total_recharged || 0).toLocaleString()} pts</p>
               </div>
               <div className="bg-green-100 p-3 rounded-full">
                 <TrendingUp size={28} className="text-green-600" />
@@ -342,8 +340,8 @@ const ViewCustomer = () => {
           <div className="bg-white rounded-xl shadow-md p-5 border-l-4 border-orange-600">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600 mb-1">Total Redeems</p>
-                <p className="text-3xl font-bold text-orange-600">{totalRedeems.toLocaleString()} pts</p>
+                <p className="text-sm text-gray-600 mb-1">Total Redeemed</p>
+                <p className="text-3xl font-bold text-orange-600">{parseFloat(customer.total_redeemed || 0).toLocaleString()} pts</p>
               </div>
               <div className="bg-orange-100 p-3 rounded-full">
                 <TrendingDown size={28} className="text-orange-600" />
@@ -355,7 +353,7 @@ const ViewCustomer = () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-600 mb-1">Total Spent</p>
-                <p className="text-3xl font-bold text-blue-600">{parseFloat(customer.amount_spend || 0).toLocaleString()}</p>
+                <p className="text-3xl font-bold text-blue-600">{CURRENCY_SYMBOL} {parseFloat(customer.amount_spend || 0).toLocaleString()}</p>
               </div>
               <div className="bg-blue-100 p-3 rounded-full">
                 <Award size={28} className="text-blue-600" />
@@ -364,151 +362,47 @@ const ViewCustomer = () => {
           </div>
         </div>
 
-        {/* Recharges Table */}
-        <div className="bg-white rounded-xl shadow-md overflow-hidden mb-6">
-          <div className="p-6 border-b border-gray-200">
-            <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-              <TrendingUp className="text-green-600" size={24} />
-              Points Recharges
-            </h2>
-            <p className="text-sm text-gray-600 mt-1">History of points added to this loyalty card</p>
-          </div>
-          
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50 border-b border-gray-200">
-                <tr>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                    Date
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                    Transaction ID
-                  </th>
-                  <th className="px-6 py-4 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                    Points Added
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {customer.recharges && customer.recharges.length > 0 ? (
-                  customer.recharges.map((recharge) => (
-                    <tr key={recharge.id} className="hover:bg-gray-50 transition">
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-800 flex items-center gap-2">
-                          <Calendar size={14} className="text-gray-400" />
-                          {new Date(recharge.created_at).toLocaleDateString()}
-                        </div>
-                        <div className="text-xs text-gray-500 mt-1">
-                          {new Date(recharge.created_at).toLocaleTimeString()}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-mono text-gray-800">#{recharge.id}</div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right">
-                        <div className="text-sm font-bold text-green-600 flex items-center justify-end gap-2">
-                          <TrendingUp size={16} />
-                          +{parseFloat(recharge.amount || 0).toLocaleString()} pts
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan="3" className="px-6 py-8 text-center text-gray-500">
-                      No recharges found for this customer.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-              {customer.recharges && customer.recharges.length > 0 && (
-                <tfoot className="bg-gray-50 border-t border-gray-200">
-                  <tr>
-                    <td colSpan="2" className="px-6 py-4 text-sm font-semibold text-gray-800">
-                      Total Recharges:
-                    </td>
-                    <td className="px-6 py-4 text-right text-sm font-bold text-green-600">
-                      {totalRecharges.toLocaleString()} pts
-                    </td>
-                  </tr>
-                </tfoot>
-              )}
-            </table>
-          </div>
-        </div>
+        {/* Store Credit Summary Cards */}
+        {(customer.credit_limit || customer.available_credit || customer.credit_issued) && (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <div className="bg-white rounded-xl shadow-md p-5 border-l-4 border-indigo-600">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Credit Limit</p>
+                  <p className="text-3xl font-bold text-indigo-600">{CURRENCY_SYMBOL} {parseFloat(customer.credit_limit || 0).toLocaleString()}</p>
+                </div>
+                <div className="bg-indigo-100 p-3 rounded-full">
+                  <CreditCard size={28} className="text-indigo-600" />
+                </div>
+              </div>
+            </div>
 
-        {/* Redeems Table */}
-        <div className="bg-white rounded-xl shadow-md overflow-hidden">
-          <div className="p-6 border-b border-gray-200">
-            <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-              <TrendingDown className="text-orange-600" size={24} />
-              Points Redeems
-            </h2>
-            <p className="text-sm text-gray-600 mt-1">History of points redeemed from this loyalty card</p>
+            <div className="bg-white rounded-xl shadow-md p-5 border-l-4 border-green-600">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Available Credit</p>
+                  <p className="text-3xl font-bold text-green-600">{CURRENCY_SYMBOL} {parseFloat(customer.available_credit || 0).toLocaleString()}</p>
+                </div>
+                <div className="bg-green-100 p-3 rounded-full">
+                  <TrendingUp size={28} className="text-green-600" />
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-xl shadow-md p-5 border-l-4 border-orange-600">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Credit Issued</p>
+                  <p className="text-3xl font-bold text-orange-600">{CURRENCY_SYMBOL} {parseFloat(customer.credit_issued || 0).toLocaleString()}</p>
+                </div>
+                <div className="bg-orange-100 p-3 rounded-full">
+                  <TrendingDown size={28} className="text-orange-600" />
+                </div>
+              </div>
+            </div>
           </div>
-          
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50 border-b border-gray-200">
-                <tr>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                    Date
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                    Transaction ID
-                  </th>
-                  <th className="px-6 py-4 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                    Points Redeemed
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {customer.redeems && customer.redeems.length > 0 ? (
-                  customer.redeems.map((redeem) => (
-                    <tr key={redeem.id} className="hover:bg-gray-50 transition">
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-800 flex items-center gap-2">
-                          <Calendar size={14} className="text-gray-400" />
-                          {new Date(redeem.created_at).toLocaleDateString()}
-                        </div>
-                        <div className="text-xs text-gray-500 mt-1">
-                          {new Date(redeem.created_at).toLocaleTimeString()}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-mono text-gray-800">#{redeem.id}</div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right">
-                        <div className="text-sm font-bold text-orange-600 flex items-center justify-end gap-2">
-                          <TrendingDown size={16} />
-                          -{parseFloat(redeem.amount || 0).toLocaleString()} pts
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan="3" className="px-6 py-8 text-center text-gray-500">
-                      No redeems found for this customer.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-              {customer.redeems && customer.redeems.length > 0 && (
-                <tfoot className="bg-gray-50 border-t border-gray-200">
-                  <tr>
-                    <td colSpan="2" className="px-6 py-4 text-sm font-semibold text-gray-800">
-                      Total Redeems:
-                    </td>
-                    <td className="px-6 py-4 text-right text-sm font-bold text-orange-600">
-                      {totalRedeems.toLocaleString()} pts
-                    </td>
-                  </tr>
-                </tfoot>
-              )}
-            </table>
-          </div>
-        </div>
+        )}
+
       </div>
     </Layout>
   );

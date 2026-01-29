@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import Layout from '../components/Layout.jsx';
 import { useCustomers } from '../contexts/CustomersContext.jsx';
 import { 
-  Users, Plus, Edit, X, Save, Phone, Mail, MapPin, Star, Award, 
+  Users, Plus, Edit, X, Save, Phone, Mail, MapPin, Star, 
   RefreshCw, Eye, Search, CreditCard, TrendingUp, Calendar, Receipt 
 } from 'lucide-react';
 import { CURRENCY_SYMBOL } from '../config/currency.js';
@@ -11,13 +11,11 @@ import { showSuccess, showWarning, showError } from '../utils/toast.js';
 
 const Customers = () => {
   const navigate = useNavigate();
-  const { customers, loading, error, addCustomer, updateCustomer, deleteCustomer, addPoints, redeemPoints, fetchCustomers } = useCustomers();
+  const { customers, loading, error, addCustomer, updateCustomer, deleteCustomer, fetchCustomers } = useCustomers();
   
   const [searchTerm, setSearchTerm] = useState('');
   const [showModal, setShowModal] = useState(false);
-  const [showPointsModal, setShowPointsModal] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState(null);
-  const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -25,12 +23,6 @@ const Customers = () => {
     address: '',
     loyaltyCardNumber: '',
     points: 0
-  });
-  const [pointsFormData, setPointsFormData] = useState({
-    action: 'add', // 'add' or 'redeem'
-    points: '',
-    moneySpend: '',
-    description: ''
   });
 
   const handleOpenModal = (customer = null) => {
@@ -71,27 +63,6 @@ const Customers = () => {
     });
   };
 
-  const handleOpenPointsModal = (customer) => {
-    setSelectedCustomer(customer);
-    setPointsFormData({
-      action: 'add',
-      points: '',
-      moneySpend: '',
-      description: ''
-    });
-    setShowPointsModal(true);
-  };
-
-  const handleClosePointsModal = () => {
-    setShowPointsModal(false);
-    setSelectedCustomer(null);
-    setPointsFormData({
-      action: 'add',
-      points: '',
-      moneySpend: '',
-      description: ''
-    });
-  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -124,44 +95,6 @@ const Customers = () => {
     }
   };
 
-  const handlePointsSubmit = async (e) => {
-    e.preventDefault();
-    
-    if (!pointsFormData.points || parseFloat(pointsFormData.points) <= 0) {
-      showWarning('Please enter a valid number of points');
-      return;
-    }
-
-    if (pointsFormData.action === 'add' && (!pointsFormData.moneySpend || parseFloat(pointsFormData.moneySpend) < 0)) {
-      showWarning('Please enter a valid amount spent (must be 0 or greater)');
-      return;
-    }
-
-    // Validate that redemption amount doesn't exceed available points
-    if (pointsFormData.action === 'redeem') {
-      const pointsToRedeem = parseFloat(pointsFormData.points);
-      const availablePoints = selectedCustomer.points || 0;
-      if (pointsToRedeem > availablePoints) {
-        showWarning(`Cannot redeem ${pointsToRedeem} points. Available points: ${availablePoints}`);
-        return;
-      }
-    }
-
-    try {
-      const points = parseFloat(pointsFormData.points);
-      if (pointsFormData.action === 'add') {
-        const moneySpend = parseFloat(pointsFormData.moneySpend || 0);
-        await addPoints(selectedCustomer.id, points, moneySpend, null, pointsFormData.description);
-        showSuccess(`${points} points added to ${selectedCustomer.name}`);
-      } else {
-        await redeemPoints(selectedCustomer.id, points, pointsFormData.description);
-        showSuccess(`${points} points redeemed for ${selectedCustomer.name}`);
-      }
-      handleClosePointsModal();
-    } catch (error) {
-      showError(error.message || 'Failed to process points');
-    }
-  };
 
   const getStatusBadge = (status) => {
     return status?.toLowerCase() === 'active' 
@@ -377,13 +310,6 @@ const Customers = () => {
                             <Eye size={18} />
                           </button>
                           <button
-                            onClick={() => handleOpenPointsModal(customer)}
-                            className="p-2 text-purple-600 hover:bg-purple-50 rounded-lg transition"
-                            title="Manage Points"
-                          >
-                            <Award size={18} />
-                          </button>
-                          <button
                             onClick={() => handleOpenModal(customer)}
                             className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition"
                             title="Edit Customer"
@@ -535,131 +461,6 @@ const Customers = () => {
           </div>
         )}
 
-        {/* Points Management Modal */}
-        {showPointsModal && selectedCustomer && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-lg p-6 max-w-md w-full">
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-2xl font-bold text-gray-800">
-                  Manage Points - {selectedCustomer.name}
-                </h2>
-                <button
-                  onClick={handleClosePointsModal}
-                  className="text-gray-500 hover:text-gray-700"
-                >
-                  <X size={24} />
-                </button>
-              </div>
-
-              <div className="mb-4 p-4 bg-purple-50 rounded-lg">
-                <div className="flex items-center gap-2">
-                  <Star size={20} className="text-yellow-500 fill-yellow-500" />
-                  <span className="text-lg font-bold text-gray-800">
-                    Current Points: {selectedCustomer.points || 0}
-                  </span>
-                </div>
-              </div>
-
-              <form onSubmit={handlePointsSubmit} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Action *
-                  </label>
-                  <select
-                    value={pointsFormData.action}
-                    onChange={(e) => {
-                      const newAction = e.target.value;
-                      setPointsFormData({ 
-                        ...pointsFormData, 
-                        action: newAction,
-                        moneySpend: newAction === 'redeem' ? '' : pointsFormData.moneySpend
-                      });
-                    }}
-                    className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
-                    required
-                  >
-                    <option value="add">Add Points</option>
-                    <option value="redeem">Redeem Points</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Points *
-                  </label>
-                  <input
-                    type="number"
-                    value={pointsFormData.points}
-                    onChange={(e) => setPointsFormData({ ...pointsFormData, points: e.target.value })}
-                    className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
-                    min="1"
-                    max={pointsFormData.action === 'redeem' ? (selectedCustomer?.points || 0) : undefined}
-                    required
-                  />
-                  {pointsFormData.action === 'redeem' && selectedCustomer && (
-                    <p className="text-xs text-gray-500 mt-1">
-                      Available points: {selectedCustomer.points || 0}
-                    </p>
-                  )}
-                </div>
-
-                {pointsFormData.action === 'add' && (
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      Money Spent {CURRENCY_SYMBOL} *
-                    </label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={pointsFormData.moneySpend}
-                      onChange={(e) => setPointsFormData({ ...pointsFormData, moneySpend: e.target.value })}
-                      className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
-                      min="0"
-                      required={pointsFormData.action === 'add'}
-                      placeholder="Enter amount spent"
-                    />
-                    <p className="text-xs text-gray-500 mt-1">
-                      Amount of money the customer spent to earn these points
-                    </p>
-                  </div>
-                )}
-
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Description
-                  </label>
-                  <textarea
-                    value={pointsFormData.description}
-                    onChange={(e) => setPointsFormData({ ...pointsFormData, description: e.target.value })}
-                    className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
-                    rows="3"
-                    placeholder="Optional description for this transaction"
-                  />
-                </div>
-
-                <div className="flex gap-3 pt-4">
-                  <button
-                    type="button"
-                    onClick={handleClosePointsModal}
-                    className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-800 py-2 rounded-lg font-semibold transition"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className={`flex-1 py-2 rounded-lg font-semibold transition ${
-                      pointsFormData.action === 'add'
-                        ? 'bg-green-600 hover:bg-green-700 text-white'
-                        : 'bg-orange-600 hover:bg-orange-700 text-white'
-                    }`}
-                  >
-                    {pointsFormData.action === 'add' ? 'Add Points' : 'Redeem Points'}
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
       </div>
     </Layout>
   );

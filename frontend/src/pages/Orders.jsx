@@ -123,24 +123,26 @@ const Orders = () => {
 
     const backendPaymentData = {
       order: selectedOrder.id,
-      paymentMethod: paymentData.paymentMethod,
-      mobileNumber: (paymentData.paymentMethod === 'mobile' || paymentData.paymentMethod === 'cash+mpesa') ? (paymentData.mobileNumber || '') : '',
-      mobileNetwork: (paymentData.paymentMethod === 'mobile' || paymentData.paymentMethod === 'cash+mpesa') ? 'Safaricom' : '',
-      splitCashAmount: paymentData.paymentMethod === 'cash+mpesa' ? (paymentData.splitCashAmount || 0) : 0,
-      splitMobileAmount: paymentData.paymentMethod === 'cash+mpesa' ? (paymentData.splitMobileAmount || 0) : 0,
-      date: new Date().toISOString().split('T')[0],
-      change: paymentData.change || 0,
-      status: 'Paid',
-      amountReceived: paymentData.amountReceived || (selectedOrder.balance || 0),
-      // Include BNPL, Store Credit, and Loyalty Card data if present
-      bnplDownPayment: paymentData.bnplDownPayment,
-      bnplInstallments: paymentData.bnplInstallments,
-      bnplInterval: paymentData.bnplInterval,
-      bnplCustomerId: paymentData.bnplCustomerId,
-      storeCreditUsed: paymentData.storeCreditUsed,
-      storeCreditCustomerId: paymentData.storeCreditCustomerId,
-      loyaltyPointsUsed: paymentData.loyaltyPointsUsed,
-      loyaltyCardNumber: paymentData.loyaltyCardNumber
+      data: {
+        paymentMethod: paymentData.paymentMethod,
+        mobileNumber: (paymentData.paymentMethod === 'mobile' || paymentData.paymentMethod === 'cash+mpesa') ? (paymentData.mobileNumber || '') : '',
+        mobileNetwork: (paymentData.paymentMethod === 'mobile' || paymentData.paymentMethod === 'cash+mpesa') ? 'Safaricom' : '',
+        splitCashAmount: paymentData.paymentMethod === 'cash+mpesa' ? (paymentData.splitCashAmount || 0) : 0,
+        splitMobileAmount: paymentData.paymentMethod === 'cash+mpesa' ? (paymentData.splitMobileAmount || 0) : 0,
+        date: new Date().toISOString().split('T')[0],
+        change: paymentData.change || 0,
+        status: 'Paid',
+        amountReceived: paymentData.amountReceived || (selectedOrder.balance || 0),
+        // Include BNPL, Store Credit, and Loyalty Card data if present
+        bnplDownPayment: paymentData.bnplDownPayment,
+        bnplInstallments: paymentData.bnplInstallments,
+        bnplInterval: paymentData.bnplInterval,
+        customerId: paymentData.customerId,
+        customerName: paymentData.customerName,
+        cardNumber: paymentData.cardNumber,
+        storeCreditUsed: paymentData.storeCreditUsed,
+        loyaltyPointsUsed: paymentData.loyaltyPointsUsed
+      }
     };
 
     try {

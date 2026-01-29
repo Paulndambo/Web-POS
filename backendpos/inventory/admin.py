@@ -8,13 +8,12 @@ class CategoryAdmin(admin.ModelAdmin):
 
 @admin.register(InventoryItem)
 class InventoryItemAdmin(admin.ModelAdmin):
-    list_display = ["id", "name", "category", "barcode", "quantity", "buying_price", "selling_price", "created_at"]
+    list_display = ["id", "name", "business", "category", "barcode", "quantity", "buying_price", "selling_price", "created_at"]
 
 
 @admin.register(InventoryLog)
 class InventoryLogAdmin(admin.ModelAdmin):
     list_display = ["id", "item", "action_type", "quantity", "actioned_by", "created_at"]
-
 
 
 @admin.register(Menu)
