@@ -44,24 +44,16 @@ class BusinessLedger(AbstractBaseModel):
             models.Index(fields=["business", "date"]),
             models.Index(fields=["branch", "date"]),
         ]
-        constraints = [
-            models.CheckConstraint(
-                check=(
-                    models.Q(debit__gt=0, credit=0)
-                    | models.Q(credit__gt=0, debit=0)
-                ),
-                name="only_one_of_debit_or_credit",
-            )
-        ]
+        
 
     def clean(self):
         """
         Enforce logical consistency between record_type and amounts.
         """
-        if self.record_type == self.RecordType.DEBIT and self.debit <= 0:
+        if self.record_type == "DEBIT" and self.debit <= 0:
             raise ValidationError("Debit entries must have a debit amount > 0.")
 
-        if self.record_type == self.RecordType.CREDIT and self.credit <= 0:
+        if self.record_type == "CREDIT" and self.credit <= 0:
             raise ValidationError("Credit entries must have a credit amount > 0.")
 
     @property
