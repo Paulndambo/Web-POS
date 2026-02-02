@@ -86,6 +86,16 @@ const PaymentModal = ({
     setSplitPointsRedeemed,
     splitPointsBalance,
     setSplitPointsBalance,
+    cardCustomer,
+    cardSearchTerm,
+    setCardCustomer,
+    setCardSearchTerm,
+    cardPointsRedeemed,
+    setCardPointsRedeemed,
+    cardPointsBalance,
+    setCardPointsBalance,
+    cardTransactionReference,
+    setCardTransactionReference,
     loyaltyPointsRate,
     validatePhoneNumber,
     searchCustomer
@@ -148,6 +158,21 @@ const PaymentModal = ({
 
   const handleBnplSearch = (value) => {
     searchCustomer(value, paymentState.setBnplCustomer, setBnplSearchTerm);
+  };
+
+  const handleCardSearch = (value) => {
+    const setCardCustomerWithPoints = (foundCustomer) => {
+      paymentState.setCardCustomer(foundCustomer);
+      if (foundCustomer) {
+        const points = parseFloat(foundCustomer.points || 0);
+        setCardPointsBalance(points);
+        setCardPointsRedeemed(''); // Reset points redeemed when customer changes
+      } else {
+        setCardPointsBalance(0);
+        setCardPointsRedeemed('');
+      }
+    };
+    searchCustomer(value, setCardCustomerWithPoints, setCardSearchTerm);
   };
 
   // BNPL Provider dropdown state
@@ -300,6 +325,22 @@ const PaymentModal = ({
             >
               <CreditCard size={28} />
               <span className="text-sm sm:text-base font-medium text-center">Store<br />Credit</span>
+            </button>
+            <button
+              onClick={() => {
+                setPaymentMethod('card');
+                paymentState.setCardCustomer(null);
+                setCardSearchTerm('');
+                setCardPointsRedeemed('');
+                setCardPointsBalance(0);
+                setCardTransactionReference('');
+              }}
+              className={`p-4 sm:p-5 border-2 rounded-lg flex flex-col items-center gap-2 sm:gap-3 transition-colors ${
+                paymentMethod === 'card' ? 'border-teal-600 bg-teal-50' : 'border-gray-300 hover:border-gray-400'
+              }`}
+            >
+              <CreditCard size={28} className="text-teal-600" />
+              <span className="text-sm sm:text-base font-medium text-center">Credit/Debit<br />Card</span>
             </button>
           </div>
         </div>
@@ -1122,6 +1163,109 @@ const PaymentModal = ({
           </div>
         )}
 
+        {/* Credit/Debit Card Payment Section */}
+        {paymentMethod === 'card' && (
+          <div className="mb-4 sm:mb-5 space-y-3 sm:space-y-4">
+            {/* Customer Search */}
+            <div>
+              <label className="block font-semibold mb-2 text-sm sm:text-base">Search Customer (Optional - for loyalty points):</label>
+              <div className="relative">
+                <Search className="absolute left-3 top-3 text-gray-400" size={18} />
+                <input
+                  type="text"
+                  value={cardSearchTerm}
+                  onChange={(e) => handleCardSearch(e.target.value)}
+                  placeholder="Enter card number or phone number"
+                  className="w-full pl-10 pr-3 sm:px-4 py-2 text-sm sm:text-base border-2 border-teal-300 rounded-lg focus:border-teal-500 focus:outline-none"
+                />
+              </div>
+              {cardCustomer && (
+                <div className="mt-2 p-3 bg-teal-50 border border-teal-200 rounded-lg">
+                  <p className="text-xs sm:text-sm text-teal-700 mb-1">
+                    <span className="font-semibold">Customer:</span> {cardCustomer.name}
+                  </p>
+                  <p className="text-xs sm:text-sm text-teal-700 mb-1">
+                    <span className="font-semibold">Phone:</span> {cardCustomer.phone || 'N/A'}
+                  </p>
+                  {cardCustomer.loyaltyCardNumber && (
+                    <p className="text-xs sm:text-sm text-teal-700 mb-1">
+                      <span className="font-semibold">Card Number:</span> {cardCustomer.loyaltyCardNumber}
+                    </p>
+                  )}
+                </div>
+              )}
+              {!cardCustomer && cardSearchTerm && (
+                <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded-lg">
+                  <p className="text-xs sm:text-sm text-yellow-700">
+                    No customer found. Please check the search term.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Points Redemption */}
+            {cardCustomer && cardPointsBalance > 0 && (
+              <div className="bg-gradient-to-r from-yellow-50 to-orange-50 border-2 border-yellow-200 rounded-lg p-3 sm:p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <p className="font-bold text-yellow-800 text-sm sm:text-base flex items-center gap-2">
+                      <Gift size={18} />
+                      Available Points
+                    </p>
+                    <p className="text-xs text-yellow-600 mt-1">1 point = {CURRENCY_SYMBOL} {loyaltyPointsRate.toFixed(2)}</p>
+                  </div>
+                  <p className="font-bold text-yellow-900 text-lg sm:text-xl">{cardPointsBalance.toLocaleString()}</p>
+                </div>
+                <div>
+                  <label className="block font-semibold mb-2 text-sm sm:text-base text-yellow-800">Redeem Points (Optional):</label>
+                  <input
+                    type="number"
+                    step="1"
+                    value={cardPointsRedeemed}
+                    onChange={(e) => {
+                      const points = parseInt(e.target.value) || 0;
+                      const maxPoints = Math.min(cardPointsBalance, Math.ceil(totalAmount / loyaltyPointsRate));
+                      if (points > maxPoints) {
+                        setCardPointsRedeemed(maxPoints.toString());
+                      } else {
+                        setCardPointsRedeemed(e.target.value);
+                      }
+                    }}
+                    placeholder="0"
+                    className="w-full px-3 sm:px-4 py-2 text-sm sm:text-base border-2 border-yellow-300 rounded-lg focus:border-yellow-500 focus:outline-none"
+                  />
+                  {cardPointsRedeemed && parseInt(cardPointsRedeemed) > 0 && (
+                    <div className="mt-2 space-y-1">
+                      <p className="text-xs sm:text-sm text-yellow-700">
+                        Points Value: <span className="font-bold">{CURRENCY_SYMBOL} {(parseInt(cardPointsRedeemed || 0) * loyaltyPointsRate).toFixed(2)}</span>
+                      </p>
+                      <p className="text-xs sm:text-sm text-green-700 font-semibold">
+                        Amount After Points: <span className="font-bold">{CURRENCY_SYMBOL} {Math.max(0, totalAmount - (parseInt(cardPointsRedeemed || 0) * loyaltyPointsRate)).toFixed(2)}</span>
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Transaction Reference */}
+            <div>
+              <label className="block font-semibold mb-2 text-sm sm:text-base">Card Transaction Reference *:</label>
+              <input
+                type="text"
+                value={cardTransactionReference}
+                onChange={(e) => setCardTransactionReference(e.target.value)}
+                placeholder="Enter transaction reference from card terminal"
+                className="w-full px-3 sm:px-4 py-2 text-sm sm:text-base border-2 border-teal-300 rounded-lg focus:border-teal-500 focus:outline-none"
+                required
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Enter the transaction reference number from the card payment terminal
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Loyalty Card Section - REMOVED - Points redemption now integrated into Cash/Mpesa/Cash+Mpesa */}
         {false && paymentMethod === 'loyalty-card' && (
           <div className="mb-4 sm:mb-5">
@@ -1211,6 +1355,7 @@ const PaymentModal = ({
             {paymentMethod === 'mobile' || paymentMethod === 'cash+mpesa' ? 'Send STK Push' : 
              paymentMethod === 'bnpl' ? 'Confirm BNPL' :
              paymentMethod === 'store-credit' ? 'Use Store Credit' :
+             paymentMethod === 'card' ? 'Complete Card Payment' :
              'Complete Payment'}
           </button>
         </div>

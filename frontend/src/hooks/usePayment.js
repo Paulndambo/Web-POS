@@ -67,6 +67,12 @@ export const usePayment = ({
   const [storeCreditCustomer, setStoreCreditCustomer] = useState(null);
   const [storeCreditSearchTerm, setStoreCreditSearchTerm] = useState('');
   
+  // Card payment state
+  const [cardCustomer, setCardCustomer] = useState(null);
+  const [cardSearchTerm, setCardSearchTerm] = useState('');
+  const [cardPointsRedeemed, setCardPointsRedeemed] = useState('');
+  const [cardPointsBalance, setCardPointsBalance] = useState(0);
+  const [cardTransactionReference, setCardTransactionReference] = useState('');
 
   // Fetch BNPL providers
   const fetchBnplProviders = async () => {
@@ -269,6 +275,10 @@ export const usePayment = ({
       if (creditUsed > storeCreditBalance) {
         return { success: false, error: `Insufficient store credit. Available: ${CURRENCY_SYMBOL} ${storeCreditBalance.toFixed(2)}` };
       }
+    } else if (paymentMethod === 'card') {
+      if (!cardTransactionReference || !cardTransactionReference.trim()) {
+        return { success: false, error: 'Please enter the card transaction reference' };
+      }
     }
 
     // Validate points redemption if customer is found
@@ -302,6 +312,16 @@ export const usePayment = ({
         return { success: false, error: `Points value (${CURRENCY_SYMBOL} ${pointsValue.toFixed(2)}) cannot exceed purchase total` };
       }
     }
+    if (paymentMethod === 'card' && cardCustomer && cardPointsRedeemed) {
+      const points = parseInt(cardPointsRedeemed || 0);
+      if (points > cardPointsBalance) {
+        return { success: false, error: `Insufficient points. Available: ${cardPointsBalance.toLocaleString()} points` };
+      }
+      const pointsValue = points * loyaltyPointsRate;
+      if (pointsValue > totalAmount) {
+        return { success: false, error: `Points value (${CURRENCY_SYMBOL} ${pointsValue.toFixed(2)}) cannot exceed purchase total` };
+      }
+    }
 
     // Build payment data
     const paymentData = buildPaymentData();
@@ -325,6 +345,9 @@ export const usePayment = ({
     } else if (paymentMethod === 'cash+mpesa' && splitCustomer) {
       pointsRedeemed = parseInt(splitPointsRedeemed || 0);
       pointsBalance = splitPointsBalance;
+    } else if (paymentMethod === 'card' && cardCustomer) {
+      pointsRedeemed = parseInt(cardPointsRedeemed || 0);
+      pointsBalance = cardPointsBalance;
     }
     
     const pointsValue = pointsRedeemed * loyaltyPointsRate;
@@ -349,17 +372,21 @@ export const usePayment = ({
                   paymentMethod === 'mobile' ? (mobileCustomer?.id ? parseInt(mobileCustomer.id) : null) :
                   paymentMethod === 'cash+mpesa' ? (splitCustomer?.id ? parseInt(splitCustomer.id) : null) :
                   paymentMethod === 'bnpl' ? (bnplCustomer?.id ? parseInt(bnplCustomer.id) : null) : 
-                  paymentMethod === 'store-credit' ? (storeCreditCustomer?.id ? parseInt(storeCreditCustomer.id) : null) : null,
+                  paymentMethod === 'store-credit' ? (storeCreditCustomer?.id ? parseInt(storeCreditCustomer.id) : null) :
+                  paymentMethod === 'card' ? (cardCustomer?.id ? parseInt(cardCustomer.id) : null) : null,
       customerName: paymentMethod === 'cash' ? (cashCustomer?.name || '') :
                     paymentMethod === 'mobile' ? (mobileCustomer?.name || '') :
                     paymentMethod === 'cash+mpesa' ? (splitCustomer?.name || '') :
                     paymentMethod === 'bnpl' ? (bnplCustomer?.name || '') : 
-                    paymentMethod === 'store-credit' ? (storeCreditCustomer?.name || '') : null,
+                    paymentMethod === 'store-credit' ? (storeCreditCustomer?.name || '') :
+                    paymentMethod === 'card' ? (cardCustomer?.name || '') : null,
       cardNumber: paymentMethod === 'cash' ? (cashCustomer?.loyaltyCardNumber || cashCustomer?.card_number || '') :
                   paymentMethod === 'mobile' ? (mobileCustomer?.loyaltyCardNumber || mobileCustomer?.card_number || '') :
                   paymentMethod === 'cash+mpesa' ? (splitCustomer?.loyaltyCardNumber || splitCustomer?.card_number || '') :
                   paymentMethod === 'bnpl' ? (bnplCustomer?.loyaltyCardNumber || bnplCustomer?.card_number || '') :
-                  paymentMethod === 'store-credit' ? (storeCreditCustomer?.loyaltyCardNumber || storeCreditCustomer?.card_number || '') : '',
+                  paymentMethod === 'store-credit' ? (storeCreditCustomer?.loyaltyCardNumber || storeCreditCustomer?.card_number || '') :
+                  paymentMethod === 'card' ? (cardCustomer?.loyaltyCardNumber || cardCustomer?.card_number || '') : '',
+      cardTransactionReference: paymentMethod === 'card' ? cardTransactionReference : null,
       storeCreditUsed: paymentMethod === 'store-credit' ? roundMoney(parseFloat(storeCreditUsed || 0)) : null,
       storeCreditBalance: paymentMethod === 'store-credit' ? roundMoney(storeCreditBalance) : null,
       loyaltyPointsUsed: pointsRedeemed > 0 ? pointsRedeemed : null,
@@ -402,6 +429,11 @@ export const usePayment = ({
     setStoreCreditUsed('');
     setStoreCreditCustomer(null);
     setStoreCreditSearchTerm('');
+    setCardCustomer(null);
+    setCardSearchTerm('');
+    setCardPointsRedeemed('');
+    setCardPointsBalance(0);
+    setCardTransactionReference('');
     setPaymentProcessing(false);
     setStkPushSent(false);
   };
@@ -457,6 +489,11 @@ export const usePayment = ({
     storeCreditUsed,
     storeCreditCustomer,
     storeCreditSearchTerm,
+    cardCustomer,
+    cardSearchTerm,
+    cardPointsRedeemed,
+    cardPointsBalance,
+    cardTransactionReference,
     loyaltyPointsRate,
     
     // Setters
@@ -494,6 +531,11 @@ export const usePayment = ({
     setStoreCreditUsed,
     setStoreCreditCustomer,
     setStoreCreditSearchTerm,
+    setCardCustomer,
+    setCardSearchTerm,
+    setCardPointsRedeemed,
+    setCardPointsBalance,
+    setCardTransactionReference,
     
     // Helpers
     validatePhoneNumber,

@@ -254,7 +254,7 @@ const POS = () => {
 
   // Transform order data to backend API format
   const transformOrderForBackend = (orderData) => {
-    // Map payment method: "mobile" -> "mpesa", "cash" -> "cash", "cash+mpesa" -> "mpesa", "bnpl" -> "bnpl", "store-credit" -> "store_credit"
+    // Map payment method: "mobile" -> "mpesa", "cash" -> "cash", "cash+mpesa" -> "mpesa", "bnpl" -> "bnpl", "store-credit" -> "store_credit", "card" -> "card"
     let backendPaymentMethod = orderData.paymentMethod;
     if (orderData.paymentMethod === 'mobile') {
       backendPaymentMethod = 'mpesa';
@@ -264,6 +264,8 @@ const POS = () => {
       backendPaymentMethod = 'store_credit';
     } else if (orderData.paymentMethod === 'loyalty-card') {
       backendPaymentMethod = 'loyalty_card';
+    } else if (orderData.paymentMethod === 'card') {
+      backendPaymentMethod = 'card';
     }
 
     // Calculate BNPL amounts if payment method is BNPL
@@ -333,6 +335,7 @@ const POS = () => {
         loyaltyPointsUsed: parseInt(orderData.loyaltyPointsUsed || 0),
         loyaltyPointsBalance: parseInt(orderData.loyaltyPointsBalance || 0),
         loyaltyPointsRate: parseFloat(orderData.loyaltyPointsRate || 1),
+        cardTransactionReference: orderData.cardTransactionReference || null,
         status: orderData.status === 'paid' ? 'Paid' : 'Pending',
         date: formattedDate,
         receiptNo: orderData.receiptNo.toString()
@@ -467,6 +470,7 @@ const POS = () => {
               receiptData.paymentMethod === 'bnpl' ? 'BUY NOW, PAY LATER' :
               receiptData.paymentMethod === 'store-credit' ? 'STORE CREDIT' :
               receiptData.paymentMethod === 'loyalty-card' ? 'LOYALTY CARD' :
+              receiptData.paymentMethod === 'card' ? 'CREDIT/DEBIT CARD' :
               receiptData.paymentMethod.toUpperCase()
             }</p>
             ${receiptData.paymentMethod === 'cash' ? `
@@ -508,6 +512,14 @@ const POS = () => {
               <p>Previous Balance: ${(receiptData.loyaltyPointsBalance || 0).toLocaleString()} points</p>
               <p>Remaining Points: ${((receiptData.loyaltyPointsBalance || 0) - (receiptData.loyaltyPointsUsed || 0)).toLocaleString()}</p>
               ${((receiptData.loyaltyPointsUsed || 0) * (receiptData.loyaltyPointsRate || 1)) < receiptData.total ? `<p>Remaining Balance: ${CURRENCY_SYMBOL} ${(receiptData.total - ((receiptData.loyaltyPointsUsed || 0) * (receiptData.loyaltyPointsRate || 1))).toFixed(2)} (to be paid separately)</p>` : ''}
+            ` : ''}
+            ${receiptData.paymentMethod === 'card' ? `
+              ${receiptData.cardTransactionReference ? `<p>Transaction Ref: ${receiptData.cardTransactionReference}</p>` : ''}
+              ${receiptData.customerName ? `<p>Customer: ${receiptData.customerName}</p>` : ''}
+              ${receiptData.loyaltyPointsUsed > 0 ? `
+                <p>Points Redeemed: ${(receiptData.loyaltyPointsUsed || 0).toLocaleString()}</p>
+                <p>Points Value: ${CURRENCY_SYMBOL} ${((receiptData.loyaltyPointsUsed || 0) * (receiptData.loyaltyPointsRate || 1)).toFixed(2)}</p>
+              ` : ''}
             ` : ''}
             <p>Thank you for shopping with us!</p>
           </div>
@@ -848,6 +860,7 @@ const POS = () => {
                      receipt.paymentMethod === 'bnpl' ? 'Buy Now, Pay Later' :
                      receipt.paymentMethod === 'store-credit' ? 'Store Credit' :
                      receipt.paymentMethod === 'loyalty-card' ? 'Loyalty Card' :
+                     receipt.paymentMethod === 'card' ? 'Credit/Debit Card' :
                      receipt.paymentMethod}
                   </span>
                 </div>
@@ -972,6 +985,34 @@ const POS = () => {
                         <span className="font-bold">{CURRENCY_SYMBOL} {((receipt.storeCreditBalance || 0) - (receipt.storeCreditUsed || 0)).toFixed(2)}</span>
                       </div>
                     </div>
+                  </>
+                )}
+                {receipt.paymentMethod === 'card' && (
+                  <>
+                    {receipt.cardTransactionReference && (
+                      <div className="flex justify-between text-sm mt-2">
+                        <span>Transaction Reference:</span>
+                        <span className="font-semibold">{receipt.cardTransactionReference}</span>
+                      </div>
+                    )}
+                    {receipt.customerName && (
+                      <div className="flex justify-between text-sm mt-2">
+                        <span>Customer:</span>
+                        <span className="font-semibold">{receipt.customerName}</span>
+                      </div>
+                    )}
+                    {receipt.loyaltyPointsUsed > 0 && (
+                      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-2 mt-2 space-y-2">
+                        <div className="flex justify-between text-sm">
+                          <span className="font-semibold text-yellow-700">Points Redeemed:</span>
+                          <span className="font-bold text-yellow-700">{(receipt.loyaltyPointsUsed || 0).toLocaleString()}</span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="font-semibold text-yellow-700">Points Value:</span>
+                          <span className="font-bold text-yellow-700">{CURRENCY_SYMBOL} {((receipt.loyaltyPointsUsed || 0) * (receipt.loyaltyPointsRate || 1)).toFixed(2)}</span>
+                        </div>
+                      </div>
+                    )}
                   </>
                 )}
                 {receipt.paymentMethod === 'loyalty-card' && (
