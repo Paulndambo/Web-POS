@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from finances.models import StoreLoan, Expense, StoreLoanLog, StoreLoanRepayment
+from finances.models import StoreLoan, Expense, StoreLoanLog, StoreLoanRepayment, PricingPlan
 # Register your models here.
 
 
@@ -27,3 +27,7 @@ class StoreLoanLogAdmin(admin.ModelAdmin):
 class StoreLoanRepaymentAdmin(admin.ModelAdmin):
     list_display = ("id", "loan", "amount", "channel", "created_at")
     
+
+@admin.register(PricingPlan)
+class PricingPlan(admin.ModelAdmin):
+    list_display = ["id", "name", "cost", "pilot_period", "duration_days"]

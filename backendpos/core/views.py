@@ -1,9 +1,13 @@
 from django.shortcuts import render
 from django.db import transaction
+from datetime import datetime
+from django.db.models import Sum, Count, Q
+from django.utils import timezone
 
 from rest_framework import status, generics
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.views import APIView
 
 from datetime import timedelta
 
@@ -13,7 +17,94 @@ from core.models import Business, Branch
 from finances.models import PricingPlan, BusinessSubscription
 from users.models import User
 from core.serializers import BusinessSerializer, BranchSerializer, BusinessOnboardingSerializer
+
+from orders.models import Order
+from payments.models import Payment
+from invoices.models import Invoice
+
+date_today = datetime.now().date()
+
 # Create your views here.
+class MetricsAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, *args, **kwargs):
+        business = getattr(request.user, "business", None)
+        if not business:
+            return Response(
+                {"detail": "User has no associated business"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        date_today = timezone.localdate()
+
+        orders_qs = Order.objects.filter(
+            business=business,
+            created_at__date=date_today
+        )
+
+        invoices_qs = Invoice.objects.filter(
+            business=business,
+            created_at__date=date_today
+        )
+
+        payments_qs = Payment.objects.filter(
+            business=business,
+            direction="Incoming",
+            created_at__date=date_today
+        )
+
+        order_metrics = orders_qs.aggregate(
+            orders_count=Count("id"),
+            paid_orders=Count("id", filter=Q(status="Paid")),
+            pending_orders=Count(
+                "id",
+                filter=Q(status__in=["Pending", "Pending Payment"])
+            ),
+            orders_total_paid=Sum("amount_paid"),
+            orders_total_amount=Sum("total_amount"),
+        )
+
+        invoice_metrics = invoices_qs.aggregate(
+            invoices_count=Count("id"),
+            pending_invoices=Count(
+                "id",
+                filter=Q(status__in=["Pending", "Pending Payment"])
+            ),
+            paid_invoices=Count(
+                "id",
+                filter=Q(status__in=["Paid", "Completed", "Complete"])
+            ),
+            invoices_total=Sum("total_amount"),
+            invoices_paid_amount=Sum("amount_paid"),
+        )
+
+        revenue_today = payments_qs.aggregate(
+            revenue=Sum("amount_received")
+        )["revenue"] or 0
+
+        orders_total_amount = order_metrics["orders_total_amount"] or 0
+        orders_total_paid = order_metrics["orders_total_paid"] or 0
+
+        invoices_total = invoice_metrics["invoices_total"] or 0
+        invoices_paid = invoice_metrics["invoices_paid_amount"] or 0
+
+        return Response(
+            {
+                **order_metrics,
+                "orders_total_pending": orders_total_amount - orders_total_paid,
+
+                **invoice_metrics,
+                "invoices_pending_amount": invoices_total - invoices_paid,
+
+                "revenue_today": revenue_today,
+            },
+            status=status.HTTP_200_OK
+        )
+
+
+
+
 class BusinessListCreateAPIView(BusinessScopedQuerysetMixin, generics.ListCreateAPIView):
     queryset = Business.objects.all().order_by("-created_at")
     serializer_class = BusinessSerializer

@@ -4,6 +4,16 @@ from decimal import Decimal
 from core.models import AbstractBaseModel
 from supplychain.models import Supplier
 # Create your models here.
+INVOICE_STATUSES = (
+    ("Pending Payment", "Pending Payment"),
+    ("Paid", "Paid"),
+    ("Cancelled", "Cancelled"),
+    ("Declined", "Declined"),
+    ("Pending", "Pending"),
+    ("Accepted", "Accepted"),
+    ("Partially Paid", "Partially Paid")
+)
+
 class Invoice(AbstractBaseModel):
     business = models.ForeignKey("core.Business", on_delete=models.SET_NULL, null=True, related_name="businessinvoices")
     branch = models.ForeignKey("core.Branch", on_delete=models.SET_NULL, null=True, related_name="branchinvoices")
@@ -13,7 +23,7 @@ class Invoice(AbstractBaseModel):
     address = models.CharField(max_length=255, null=True)
     due_date = models.DateField()
     invoice_number = models.CharField(max_length=255)
-    status = models.CharField(max_length=255)
+    status = models.CharField(max_length=255, default="Pending", choices=INVOICE_STATUSES)
     tax = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0'))
     sub_total = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0'))
     total_amount = models.DecimalField(max_digits=10, decimal_places=2)
@@ -76,3 +86,4 @@ class SupplierInvoiceItem(AbstractBaseModel):
 
     def __str__(self):
         return f"{self.product.name} x {self.quantity}"
+    

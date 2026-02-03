@@ -52,7 +52,6 @@ class POSOrderPlacementAPIView(generics.CreateAPIView):
             print(order_data)
 
             
-
             if order_data.get("paymentMethod") == "bnpl":
                 BNPLPurchaseProcessor(
                     user=request.user,
@@ -79,12 +78,15 @@ class POSOrderPlacementAPIView(generics.CreateAPIView):
                     sub_total=order_data.get("subtotal"),
                     total_amount=order_data.get("total"),
                     amount_received=order_data.get("amountReceived"),
+                    amount_paid=order_data.get("total"),
                     status=order_data.get("status"),
                     sold_by=request.user
                 )
                 order.status == "Paid" if order.amount_received >= order.total_amount else order_data.get("status")
                 order.save()
                 Payment.objects.create(
+                    business=order.business,
+                    branch=order.branch,
                     order=order,
                     subtotal=order_data.get("subtotal"), 
                     tax=order_data.get("tax"), 

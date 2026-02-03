@@ -12,6 +12,7 @@ class Order(AbstractBaseModel):
     sub_total = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0'))
     total_amount = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0'))
     amount_received = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0'))
+    amount_paid = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0'))
     change = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0'))
     status = models.CharField(max_length=50)
     sold_by = models.ForeignKey("users.User", on_delete=models.SET_NULL, null=True, related_name="orders")

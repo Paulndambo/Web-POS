@@ -38,9 +38,12 @@ class BNPLPurchaseProcessor:
             total_amount=self.order_data.get("total"),
             amount_received=self.order_data.get("amountReceived"),
             sold_by=self.user,
-            status="Pending"
+            status="Pending",
+            amount_paid=self.order_data.get("bnplDownPayment"),
         )
         Payment.objects.create(
+            business=order.business,
+            branch=order.branch,
             order=order,
             subtotal=self.order_data.get("subtotal"), 
             tax=self.order_data.get("tax"), 

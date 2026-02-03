@@ -17,7 +17,7 @@ from django.utils import timezone
 from rest_framework.permissions import AllowAny, IsAdminUser, IsAuthenticated
 from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
-from payments.models import Payment, SupplierPayment, BusinessLedger
+from payments.models import Payment, SupplierPayment, BusinessLedger, CustomerInvoicePayment
 
 # Create your views here.
 class InvoiceAPIView(BusinessScopedQuerysetMixin, generics.ListCreateAPIView):
@@ -31,6 +31,8 @@ class InvoiceAPIView(BusinessScopedQuerysetMixin, generics.ListCreateAPIView):
         serializer = CreateInvoiceSerializer(data=data)
         if serializer.is_valid(raise_exception=True):
             invoice = Invoice.objects.create(
+                business=request.user.business,
+                branch=request.user.branch,
                 customer_name=serializer.validated_data.get("customer_name"),
                 email=serializer.validated_data.get("email"),
                 phone_number=serializer.validated_data.get("phone_number"),
@@ -148,36 +150,49 @@ class InvoicePaymentAPIView(generics.CreateAPIView):
 
     @transaction.atomic
     def post(self, request, *args, **kwargs):
-        print(request.data)
+        
 
         serializer = self.serializer_class(data=request.data)
         if serializer.is_valid(raise_exception=True):
-
-            invoice = Invoice.objects.get(id=serializer.validated_data["invoice"])
-            invoice.amount_paid += serializer.validated_data.get("amountReceived")
-            invoice.status=serializer.validated_data.get("status")
+            payment_data = serializer.validated_data.get("data")
+            
+            invoice = Invoice.objects.get(id=payment_data["invoice"])
+            invoice.amount_paid += payment_data.get("amountReceived")
             invoice.save()
 
             invoice.refresh_total_amount()
+            invoice.status = "Partially Paid" if invoice.amount_paid < invoice.total_amount else "Paid"
+            invoice.save()
+
+
+            CustomerInvoicePayment.objects.create(
+                business=invoice.business,
+                branch=invoice.branch,
+                invoice=invoice,
+                amount_paid=payment_data.get("amountReceived"),
+                payment_method=payment_data.get("paymentMethod"), 
+            )
 
             Payment.objects.create(
+                business=invoice.business,
+                branch=invoice.branch,
                 invoice=invoice,
-                subtotal=serializer.validated_data.get("subtotal"), 
-                tax=serializer.validated_data.get("tax"), 
-                total=serializer.validated_data.get("total"), 
-                payment_method=serializer.validated_data.get("paymentMethod"), 
-                amount_received=serializer.validated_data.get("amountReceived"), 
-                change=serializer.validated_data.get("change"), 
-                mobile_number=serializer.validated_data.get("mobileNumber"), 
-                mobile_network=serializer.validated_data.get("mobileNetwork"), 
-                split_cash_amount=serializer.validated_data.get("splitCashAmount"), 
-                split_mobile_amount=serializer.validated_data.get("splitMobileAmount"), 
+                subtotal=payment_data.get("subtotal"), 
+                tax=payment_data.get("tax"), 
+                total=invoice.total_amount, 
+                payment_method=payment_data.get("paymentMethod"), 
+                amount_received=payment_data.get("amountReceived"), 
+                change=payment_data.get("change") if payment_data.get("change") > 0 else 0, 
+                mobile_number=payment_data.get("mobileNumber"), 
+                mobile_network=payment_data.get("mobileNetwork"), 
+                split_cash_amount=payment_data.get("splitCashAmount"), 
+                split_mobile_amount=payment_data.get("splitMobileAmount"), 
                 status=invoice.status, 
-                payment_date=serializer.validated_data.get("date"), 
+                payment_date=payment_data.get("date"), 
                 receipt_number=invoice.invoice_number,
                 customer_name=invoice.customer_name
             )
-
+            
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     

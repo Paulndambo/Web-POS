@@ -2,6 +2,7 @@ from decimal import Decimal
 from rest_framework import serializers
 from invoices.models import Invoice, InvoiceItem, SupplierInvoice, SupplierInvoiceItem
 from payments.models import SupplierPayment
+from payments.serializers import CustomerInvoicePaymentSerializer
 
 class InvoiceItemSerializer(serializers.ModelSerializer):
     item_name = serializers.SerializerMethodField()
@@ -39,6 +40,7 @@ class InvoiceSerializer(serializers.ModelSerializer):
 class InvoiceDetailSerializer(serializers.ModelSerializer):
     invoiceitems = InvoiceItemSerializer(many=True)
     balance = serializers.SerializerMethodField()
+    invoice_payments = CustomerInvoicePaymentSerializer(many=True)
     class Meta:
         model = Invoice
         fields = "__all__"
@@ -75,19 +77,7 @@ class InvoiceItemUpdateSerializer(serializers.Serializer):
 
 
 class InvoicePaymentSerializer(serializers.Serializer):
-    invoice = serializers.IntegerField()
-    subtotal = serializers.DecimalField(max_digits=100, decimal_places=2, default=0, required=False)
-    tax = serializers.DecimalField(max_digits=100, decimal_places=2, default=0, required=False)
-    total = serializers.DecimalField(max_digits=100, decimal_places=2, default=0, required=False)
-    paymentMethod = serializers.CharField(max_length=255, required=False, allow_null=True, allow_blank=True)
-    amountReceived = serializers.DecimalField(max_digits=100, decimal_places=2, default=0, required=False)
-    change = serializers.DecimalField(max_digits=100, decimal_places=2, default=0, required=False)
-    mobileNumber = serializers.CharField(max_length=255, required=False, allow_null=True, allow_blank=True)
-    mobileNetwork = serializers.CharField(max_length=255, required=False, allow_null=True, allow_blank=True)
-    splitCashAmount = serializers.DecimalField(max_digits=100, decimal_places=2, default=0, required=False)
-    splitMobileAmount = serializers.DecimalField(max_digits=100, decimal_places=2, default=0, required=False)
-    status = serializers.CharField(max_length=255)
-    date = serializers.DateField(required=False, allow_null=True)
+    data = serializers.DictField()
     
 
 class SupplierInvoiceItemSerializer(serializers.ModelSerializer):

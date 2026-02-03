@@ -40,6 +40,7 @@ class ProcessStoreLoanMixin:
         store_loan.customer.save()
 
         StoreLoanLog.objects.create(
+
             loan=store_loan,
             action="New loan issued",
             amount=self.amount,

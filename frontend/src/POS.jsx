@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Search, ShoppingCart, Trash2, Plus, Minus, DollarSign, Receipt, X } from 'lucide-react';
+import { Search, ShoppingCart, Trash2, Plus, Minus, DollarSign, Receipt, X, LayoutDashboard } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { useOrders } from './contexts/OrdersContext.jsx';
 import { useAuth } from './contexts/AuthContext.jsx';
 import { useCustomers } from './contexts/CustomersContext.jsx';
@@ -535,7 +536,7 @@ const POS = () => {
   };
 
   return (
-    <Layout>
+    <Layout hideSidebar={true}>
       <div className="h-screen flex flex-col">
         <style>{`
           @media print {
@@ -556,6 +557,19 @@ const POS = () => {
             }
           }
         `}</style>
+
+      {/* Header with Dashboard Link */}
+      <div className="bg-white shadow-sm border-b border-gray-200 px-2 sm:px-4 py-2 sm:py-3 flex items-center justify-between">
+        <Link
+          to="/dashboard"
+          className="flex items-center gap-2 px-3 sm:px-4 py-2 text-sm sm:text-base text-gray-700 hover:text-blue-600 hover:bg-gray-100 rounded-lg transition-colors"
+        >
+          <LayoutDashboard size={20} />
+          <span className="font-medium">Dashboard</span>
+        </Link>
+        <h1 className="text-lg sm:text-xl font-bold text-gray-800">Point of Sale</h1>
+        <div className="w-24 sm:w-32"></div> {/* Spacer for centering */}
+      </div>
 
       <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
         {/* Products Section */}

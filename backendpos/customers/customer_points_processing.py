@@ -12,7 +12,10 @@ class CustomerPointsProcessor:
 
 
     def run(self):
-        self.__process_points()
+        if not self.card_number:
+            return {"message": "Loyalty card number not found!!"}
+        else:
+            self.__process_points()
 
 
     @transaction.atomic
@@ -42,7 +45,10 @@ class CustomerPointsRedeemer:
 
 
     def run(self):
-        self.__redeem_points()
+        if not self.card_number:
+            return {"message": "Loyalty card number not found!!"}
+        else:
+            self.__redeem_points()
 
 
     @transaction.atomic

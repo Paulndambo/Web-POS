@@ -5,13 +5,13 @@ import { useCustomers } from '../contexts/CustomersContext.jsx';
 import Layout from '../components/Layout.jsx';
 import { CURRENCY_SYMBOL } from '../config/currency.js';
 import { showSuccess, showError, showWarning, showInfo } from '../utils/toast.js';
-import { apiGet, apiPost } from '../utils/api.js';
+import { apiGet, apiPost, apiPatch } from '../utils/api.js';
 import { usePayment } from '../hooks/usePayment.js';
 import PaymentModal from '../components/PaymentModal.jsx';
 import { 
   ArrowLeft, Search, Plus, Minus, X, Printer, DollarSign, 
   FileText, Edit2, Save, Trash2, ShoppingCart, Banknote, 
-  Smartphone, Wallet, Calendar, Mail, Phone, MapPin, RefreshCw, AlertCircle
+  Smartphone, Wallet, Calendar, Mail, Phone, MapPin, RefreshCw, AlertCircle, CheckCircle
 } from 'lucide-react';
 
 const ViewInvoice = () => {
@@ -30,6 +30,7 @@ const ViewInvoice = () => {
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [isEditing, setIsEditing] = useState(false);
   const [showAddItems, setShowAddItems] = useState(false);
+  const [acceptingInvoice, setAcceptingInvoice] = useState(false);
   
   // Customer info editing
   const [customerName, setCustomerName] = useState('');
@@ -74,7 +75,9 @@ const ViewInvoice = () => {
         customerAddress: data.address,
         dueDate: data.due_date,
         timestamp: data.created_at,
-        status: data.status?.toLowerCase() || 'pending',
+        status: data.status === 'Accepted' ? 'Accepted' : 
+                data.status === 'Partially Paid' ? 'Partially Paid' : 
+                (data.status?.toLowerCase() || 'pending'),
         subtotal: parseFloat(data.sub_total || 0),
         tax: parseFloat(data.tax || 0),
         total: parseFloat(data.total_amount || 0),
@@ -87,7 +90,12 @@ const ViewInvoice = () => {
           quantity: parseFloat(item.quantity),
           total: parseFloat(item.item_total)
         })),
-        payments: [] // If payments are tracked separately
+        payments: (data.invoice_payments || []).map(payment => ({
+          id: payment.id,
+          amountPaid: parseFloat(payment.amount_paid || 0),
+          paymentMethod: payment.payment_method || 'N/A',
+          date: payment.created_at || payment.date || null
+        }))
       };
       
       setInvoice(transformedInvoice);
@@ -198,6 +206,35 @@ const ViewInvoice = () => {
     setIsEditing(false);
   };
 
+  const handleAcceptInvoice = async () => {
+    if (!id) {
+      showError('Invoice ID is missing');
+      return;
+    }
+
+    setAcceptingInvoice(true);
+    try {
+      const response = await apiPatch(`/invoices/${id}/details/`, {
+        status: 'Accepted'
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || errorData.message || `HTTP error! status: ${response.status}`);
+      }
+
+      showSuccess('Invoice accepted successfully!');
+      
+      // Refresh invoice details to show the updated status
+      await fetchInvoiceDetails();
+    } catch (error) {
+      console.error('Error accepting invoice:', error);
+      showError(`Failed to accept invoice: ${error.message}`);
+    } finally {
+      setAcceptingInvoice(false);
+    }
+  };
+
   const handleInvoiceItemAction = async (invoiceItemId, actionType, amount) => {
     try {
       const updateData = {
@@ -296,6 +333,7 @@ const ViewInvoice = () => {
     const backendPaymentData = {
       invoice: parseInt(id),
       data: {
+        invoice: parseInt(id), // Include invoice ID in data object for invoice payments
         subtotal: invoice.subtotal || 0,
         tax: invoice.tax || 0,
         total_amount: invoice.total || 0,
@@ -351,17 +389,21 @@ const ViewInvoice = () => {
   const handleProcessPayment = () => {
     const result = payment.processPayment();
     if (result.success) {
-      // For mobile payments, initiate STK push (if needed)
+      // For mobile payments, validate phone number first
       if (payment.paymentMethod === 'mobile' || payment.paymentMethod === 'cash+mpesa') {
         const validation = payment.validatePhoneNumber(payment.mobileNumber);
         if (validation.valid) {
           payment.setMobileNumber(validation.cleaned);
-          // For invoices, we don't need STK push - just complete the payment
-          // The onPaymentComplete callback in usePayment will handle calling completeTransaction
+        } else {
+          showWarning(validation.error);
+          return;
         }
-      } else {
-        // For other payment methods, complete immediately
-        // The onPaymentComplete callback in usePayment will handle calling completeTransaction
+      }
+      
+      // Build payment data and complete the transaction
+      const paymentData = payment.buildPaymentData();
+      if (paymentCompleteRef.current) {
+        paymentCompleteRef.current(paymentData);
       }
     } else {
       showWarning(result.error);
@@ -376,25 +418,33 @@ const ViewInvoice = () => {
 
     const amountDue = inv.balance || 0;
     const status = inv.status || 'pending';
+    const statusLower = status.toLowerCase();
     const subtotal = inv.subtotal || 0;
     const tax = inv.tax || 0;
     const total = inv.total || 0;
     const amountPaid = inv.amountPaid || 0;
     
     let paymentDetails = '';
-    if (status === 'paid') {
+    if (statusLower === 'paid' || status === 'Paid') {
       paymentDetails = `
         <div style="background-color: #d1fae5; color: #065f46; padding: 10px; border-radius: 4px; font-weight: bold; margin-top: 10px;">
           STATUS: PAID IN FULL
         </div>
         <p>Total Paid: ${CURRENCY_SYMBOL} ${amountPaid.toFixed(2)}</p>
       `;
-    } else if (status === 'partial') {
+    } else if (statusLower === 'partial' || status === 'Partially Paid') {
       paymentDetails = `
         <div style="background-color: #dbeafe; color: #1e40af; padding: 10px; border-radius: 4px; font-weight: bold; margin-top: 10px;">
           STATUS: PARTIALLY PAID
         </div>
         <p>Amount Paid: ${CURRENCY_SYMBOL} ${amountPaid.toFixed(2)}</p>
+        <p>Amount Due: ${CURRENCY_SYMBOL} ${amountDue.toFixed(2)}</p>
+      `;
+    } else if (status === 'Accepted' || statusLower === 'accepted') {
+      paymentDetails = `
+        <div style="background-color: #e0e7ff; color: #4338ca; padding: 10px; border-radius: 4px; font-weight: bold; margin-top: 10px;">
+          STATUS: ACCEPTED
+        </div>
         <p>Amount Due: ${CURRENCY_SYMBOL} ${amountDue.toFixed(2)}</p>
       `;
     } else {
@@ -408,16 +458,40 @@ const ViewInvoice = () => {
 
     if (inv.payments && inv.payments.length > 0) {
       paymentDetails += '<div style="margin-top: 15px; border-top: 1px dashed #000; padding-top: 10px;">';
-      paymentDetails += '<p style="font-weight: bold; margin-bottom: 5px;">Payment History:</p>';
+      paymentDetails += '<p style="font-weight: bold; margin-bottom: 8px;">Payment History:</p>';
+      paymentDetails += '<table style="width: 100%; border-collapse: collapse; font-size: 11px;">';
+      paymentDetails += '<thead><tr style="background-color: #f3f4f6; border-bottom: 1px solid #ddd;">';
+      paymentDetails += '<th style="padding: 6px; text-align: left; font-weight: bold;">#</th>';
+      paymentDetails += '<th style="padding: 6px; text-align: left; font-weight: bold;">Date</th>';
+      paymentDetails += '<th style="padding: 6px; text-align: left; font-weight: bold;">Method</th>';
+      paymentDetails += '<th style="padding: 6px; text-align: right; font-weight: bold;">Amount</th>';
+      paymentDetails += '</tr></thead><tbody>';
+      
       inv.payments.forEach((payment, index) => {
-        paymentDetails += `
-          <p style="font-size: 11px; margin: 3px 0;">
-            ${index + 1}. ${CURRENCY_SYMBOL} ${(payment.amount || 0).toFixed(2)} - ${payment.paymentMethod || 'N/A'} 
-            (${payment.timestamp ? new Date(payment.timestamp).toLocaleString() : 'N/A'})
-            ${payment.paymentReference ? ` - Ref: ${payment.paymentReference}` : ''}
-          </p>
-        `;
+        const paymentDate = payment.date ? new Date(payment.date).toLocaleDateString() : 
+                           payment.created_at ? new Date(payment.created_at).toLocaleDateString() : 
+                           payment.timestamp ? new Date(payment.timestamp).toLocaleDateString() : 'N/A';
+        const paymentMethod = payment.paymentMethod === 'cash+mpesa' ? 'Cash + Mpesa' : 
+                             payment.paymentMethod === 'mobile' ? 'Mpesa' : 
+                             payment.paymentMethod || 'N/A';
+        const paymentAmount = payment.amountPaid || payment.amount || 0;
+        
+        paymentDetails += '<tr style="border-bottom: 1px solid #eee;">';
+        paymentDetails += `<td style="padding: 6px;">${index + 1}</td>`;
+        paymentDetails += `<td style="padding: 6px;">${paymentDate}</td>`;
+        paymentDetails += `<td style="padding: 6px; text-transform: capitalize;">${paymentMethod}</td>`;
+        paymentDetails += `<td style="padding: 6px; text-align: right; font-weight: bold;">${CURRENCY_SYMBOL} ${paymentAmount.toFixed(2)}</td>`;
+        paymentDetails += '</tr>';
       });
+      
+      // Add total row
+      const totalPaid = inv.payments.reduce((sum, p) => sum + (p.amountPaid || p.amount || 0), 0);
+      paymentDetails += '<tr style="border-top: 2px solid #000; font-weight: bold; background-color: #f9fafb;">';
+      paymentDetails += '<td colspan="3" style="padding: 8px;">Total Paid</td>';
+      paymentDetails += `<td style="padding: 8px; text-align: right;">${CURRENCY_SYMBOL} ${totalPaid.toFixed(2)}</td>`;
+      paymentDetails += '</tr>';
+      
+      paymentDetails += '</tbody></table>';
       paymentDetails += '</div>';
     }
 
@@ -582,7 +656,7 @@ const ViewInvoice = () => {
           <div class="footer">
             ${paymentDetails}
             <p style="margin-top: 20px;">Thank you for your business!</p>
-            <p>Please make payment by the due date.</p>
+            ${(statusLower !== 'paid' && status !== 'Paid') ? '<p>Please make payment by the due date.</p>' : ''}
           </div>
         </body>
       </html>
@@ -715,12 +789,38 @@ const ViewInvoice = () => {
             <div className="flex-1 min-w-0">
               <h2 className="text-xl sm:text-2xl md:text-3xl font-bold text-gray-800 truncate">Invoice #{invoice.invoiceNo}</h2>
               <p className="text-sm sm:text-base text-gray-600">
-                {status === 'paid' ? 'Paid' : status === 'partial' ? 'Partially Paid' : 'Pending Payment'}
+                {status === 'paid' || status === 'Paid' ? 'Paid' : 
+                 status === 'partial' || status === 'Partially Paid' ? 'Partially Paid' : 
+                 status === 'Accepted' || status === 'accepted' ? 'Accepted' : 
+                 'Pending Payment'}
               </p>
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
-            {(invoice?.balance || 0) > 0 && (
+            {/* Accept Invoice Button - Show when status is Pending */}
+            {status === 'pending' && (
+              <button
+                onClick={handleAcceptInvoice}
+                disabled={acceptingInvoice}
+                className="flex-1 sm:flex-none bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 disabled:bg-indigo-400 text-white px-4 py-3 rounded-lg font-semibold text-base flex items-center justify-center gap-2 touch-manipulation min-h-[44px]"
+              >
+                {acceptingInvoice ? (
+                  <>
+                    <RefreshCw className="animate-spin" size={18} />
+                    <span className="hidden sm:inline">Accepting...</span>
+                    <span className="sm:hidden">Accepting...</span>
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle size={18} />
+                    <span className="hidden sm:inline">Accept Invoice</span>
+                    <span className="sm:hidden">Accept</span>
+                  </>
+                )}
+              </button>
+            )}
+            {/* Payment Button - Only show when status is Accepted or Partially Paid */}
+            {(invoice?.balance || 0) > 0 && (status === 'Accepted' || status === 'accepted' || status === 'partial' || status === 'Partially Paid') && (
               <button
                 onClick={() => payment.openPayment()}
                 className="flex-1 sm:flex-none bg-green-600 hover:bg-green-700 active:bg-green-800 text-white px-4 py-3 rounded-lg font-semibold text-base flex items-center justify-center gap-2 touch-manipulation min-h-[44px]"
@@ -733,7 +833,7 @@ const ViewInvoice = () => {
             {status === 'pending' && (
               <button
                 onClick={() => setShowAddItems(true)}
-                className="flex-1 sm:flex-none bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white px-4 py-3 rounded-lg font-semibold text-base flex items-center justify-center gap-2 touch-manipulation min-h-[44px]"
+                className="flex-1 sm:flex-none bg-orange-600 hover:bg-orange-700 active:bg-orange-800 text-white px-4 py-3 rounded-lg font-semibold text-base flex items-center justify-center gap-2 touch-manipulation min-h-[44px]"
               >
                 <Plus size={18} />
                 <span className="hidden sm:inline">Add Items</span>
@@ -996,43 +1096,10 @@ const ViewInvoice = () => {
                 </table>
               </div>
             </div>
-
-            {/* Payment History */}
-            {invoice.payments && invoice.payments.length > 0 && (
-              <div className="bg-white rounded-xl shadow-md p-4 sm:p-6">
-                <h3 className="text-lg font-bold text-gray-800 mb-4">Payment History</h3>
-                <div className="space-y-3">
-                  {invoice.payments.map((payment, index) => (
-                    <div key={payment.id} className="bg-gray-50 p-3 rounded-lg">
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <p className="font-semibold text-gray-800">
-                            Payment #{index + 1} - {CURRENCY_SYMBOL} {payment.amount.toFixed(2)}
-                          </p>
-                          <p className="text-sm text-gray-600">
-                            Method: {payment.paymentMethod === 'cash+mpesa' ? 'Cash + Mpesa' : payment.paymentMethod || 'N/A'}
-                          </p>
-                          {payment.paymentMethod === 'cash+mpesa' && (
-                            <p className="text-xs text-gray-500">
-                              Cash: {CURRENCY_SYMBOL} {(payment.splitCashAmount || 0).toFixed(2)} | 
-                              Mpesa: {CURRENCY_SYMBOL} {(payment.splitMobileAmount || 0).toFixed(2)}
-                            </p>
-                          )}
-                          {payment.paymentReference && (
-                            <p className="text-xs text-gray-500">Reference: {payment.paymentReference}</p>
-                          )}
-                        </div>
-                        <p className="text-xs text-gray-500">{new Date(payment.timestamp).toLocaleString()}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
           </div>
 
           {/* Sidebar - Summary */}
-          <div className="space-y-6">
+          <div className="space-y-4 sm:space-y-6">
             <div className="bg-white rounded-xl shadow-md p-4 sm:p-6">
               <h3 className="text-lg font-bold text-gray-800 mb-4">Invoice Summary</h3>
               <div className="space-y-3">
@@ -1063,20 +1130,70 @@ const ViewInvoice = () => {
                   </div>
                 </div>
                 <div className={`p-3 rounded-lg mt-4 ${
-                  status === 'paid' ? 'bg-green-50 border border-green-200' :
-                  status === 'partial' ? 'bg-blue-50 border border-blue-200' :
+                  status === 'paid' || status === 'Paid' ? 'bg-green-50 border border-green-200' :
+                  status === 'partial' || status === 'Partially Paid' ? 'bg-blue-50 border border-blue-200' :
+                  status === 'Accepted' || status === 'accepted' ? 'bg-indigo-50 border border-indigo-200' :
                   'bg-yellow-50 border border-yellow-200'
                 }`}>
                   <p className={`text-sm font-semibold ${
-                    status === 'paid' ? 'text-green-700' :
-                    status === 'partial' ? 'text-blue-700' :
+                    status === 'paid' || status === 'Paid' ? 'text-green-700' :
+                    status === 'partial' || status === 'Partially Paid' ? 'text-blue-700' :
+                    status === 'Accepted' || status === 'accepted' ? 'text-indigo-700' :
                     'text-yellow-700'
                   }`}>
-                    Status: {status === 'paid' ? 'Paid in Full' : status === 'partial' ? 'Partially Paid' : 'Pending Payment'}
+                    Status: {status === 'paid' || status === 'Paid' ? 'Paid in Full' : 
+                             status === 'partial' || status === 'Partially Paid' ? 'Partially Paid' : 
+                             status === 'Accepted' || status === 'accepted' ? 'Accepted' : 
+                             'Pending Payment'}
                   </p>
                 </div>
               </div>
             </div>
+
+            {/* Payment History */}
+            {invoice.payments && invoice.payments.length > 0 && (
+              <div className="bg-white rounded-xl shadow-md p-4 sm:p-6">
+                <h3 className="text-lg font-bold text-gray-800 mb-4">Payment History</h3>
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b-2 border-gray-200">
+                        <th className="text-left py-3 px-2 sm:px-4 text-sm font-semibold text-gray-700">#</th>
+                        <th className="text-left py-3 px-2 sm:px-4 text-sm font-semibold text-gray-700">Date</th>
+                        <th className="text-left py-3 px-2 sm:px-4 text-sm font-semibold text-gray-700">Method</th>
+                        <th className="text-right py-3 px-2 sm:px-4 text-sm font-semibold text-gray-700">Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {invoice.payments.map((payment, index) => (
+                        <tr key={payment.id || index} className="border-b border-gray-100 hover:bg-gray-50">
+                          <td className="py-3 px-2 sm:px-4 text-sm">{index + 1}</td>
+                          <td className="py-3 px-2 sm:px-4 text-sm text-gray-600">
+                            {payment.date ? new Date(payment.date).toLocaleDateString() : 'N/A'}
+                          </td>
+                          <td className="py-3 px-2 sm:px-4 text-sm capitalize text-gray-600">
+                            {payment.paymentMethod === 'cash+mpesa' ? 'Cash + Mpesa' : 
+                             payment.paymentMethod === 'mobile' ? 'Mpesa' : 
+                             payment.paymentMethod || 'N/A'}
+                          </td>
+                          <td className="py-3 px-2 sm:px-4 text-sm text-right font-semibold text-green-600">
+                            {CURRENCY_SYMBOL} {payment.amountPaid.toFixed(2)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr className="border-t-2 border-gray-200 font-bold">
+                        <td colSpan="3" className="py-3 px-2 sm:px-4 text-sm">Total Paid</td>
+                        <td className="py-3 px-2 sm:px-4 text-sm text-right text-green-600">
+                          {CURRENCY_SYMBOL} {invoice.payments.reduce((sum, p) => sum + (p.amountPaid || 0), 0).toFixed(2)}
+                        </td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 

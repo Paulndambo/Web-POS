@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from payments.models import Payment
+from payments.models import Payment, CustomerInvoicePayment
 
 
 class PaymentSerializer(serializers.ModelSerializer):
@@ -10,3 +10,9 @@ class PaymentSerializer(serializers.ModelSerializer):
 
     def get_paid_by(self, obj):
         return obj.invoice.customer_name if obj.invoice else "One-Time Customer"
+
+
+class CustomerInvoicePaymentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CustomerInvoicePayment
+        fields = ["id", "amount_paid", "payment_method", "created_at"]

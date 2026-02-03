@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useOrders } from '../contexts/OrdersContext.jsx';
 import { useInvoices } from '../contexts/InvoicesContext.jsx';
+import { apiGet } from '../utils/api.js';
 import { 
   ShoppingCart, 
   Receipt, 
@@ -8,55 +9,53 @@ import {
   DollarSign, 
   TrendingUp,
   Clock,
-  CheckCircle
+  CheckCircle,
+  RefreshCw
 } from 'lucide-react';
 import { CURRENCY_SYMBOL } from '../config/currency.js';
 import Layout from '../components/Layout.jsx';
+import { showError } from '../utils/toast.js';
 
 const Dashboard = () => {
-  const { 
-    orders, 
-    totalOrders, 
-    paidOrders, 
-    pendingOrders, 
-    totalRevenue, 
-    pendingRevenue 
-  } = useOrders();
+  const [metrics, setMetrics] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   
-  const { 
-    invoices, 
-    totalInvoices, 
-    paidInvoices, 
-    pendingInvoices, 
-    totalInvoiceAmount,
-    totalPaidAmount,
-    totalPendingAmount
-  } = useInvoices();
+  const { orders } = useOrders();
+  const { invoices } = useInvoices();
 
-  // Calculate today's metrics
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  // Fetch metrics from API
+  useEffect(() => {
+    const fetchMetrics = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        
+        const response = await apiGet('/core/metrics/');
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        setMetrics(data);
+      } catch (error) {
+        console.error('Error fetching metrics:', error);
+        setError(error.message);
+        showError(`Failed to load metrics: ${error.message}`);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  const todayOrders = orders.filter(order => {
-    const orderDate = new Date(order.timestamp);
-    orderDate.setHours(0, 0, 0, 0);
-    return orderDate.getTime() === today.getTime();
-  });
+    fetchMetrics();
+  }, []);
 
-  const todayRevenue = todayOrders
-    .filter(order => order.status === 'paid')
-    .reduce((sum, order) => sum + order.total, 0);
-
-  const todayInvoices = invoices.filter(invoice => {
-    const invoiceDate = new Date(invoice.timestamp);
-    invoiceDate.setHours(0, 0, 0, 0);
-    return invoiceDate.getTime() === today.getTime();
-  });
-
-  const stats = [
+  // Use metrics from API if available, otherwise use defaults
+  const stats = metrics ? [
     {
       title: 'Total Revenue',
-      value: totalRevenue.toFixed(2),
+      value: (metrics.orders_total_paid + metrics.invoices_paid_amount).toFixed(2),
       icon: DollarSign,
       color: 'green',
       bgColor: 'bg-green-100',
@@ -65,7 +64,7 @@ const Dashboard = () => {
     },
     {
       title: 'Pending Revenue',
-      value: pendingRevenue.toFixed(2),
+      value: (metrics.orders_total_pending + metrics.invoices_pending_amount).toFixed(2),
       icon: Clock,
       color: 'yellow',
       bgColor: 'bg-yellow-100',
@@ -74,8 +73,8 @@ const Dashboard = () => {
     },
     {
       title: 'Total Orders',
-      value: totalOrders,
-      subtitle: `${paidOrders} paid, ${pendingOrders} pending`,
+      value: metrics.orders_count,
+      subtitle: `${metrics.paid_orders} paid, ${metrics.pending_orders} pending`,
       icon: Receipt,
       color: 'blue',
       bgColor: 'bg-blue-100',
@@ -84,8 +83,8 @@ const Dashboard = () => {
     },
     {
       title: 'Today\'s Revenue',
-      value: todayRevenue.toFixed(2),
-      subtitle: `${todayOrders.length} orders today`,
+      value: metrics.revenue_today.toFixed(2),
+      subtitle: `Combined orders and invoices`,
       icon: TrendingUp,
       color: 'purple',
       bgColor: 'bg-purple-100',
@@ -94,8 +93,8 @@ const Dashboard = () => {
     },
     {
       title: 'Total Invoices',
-      value: totalInvoices,
-      subtitle: `${paidInvoices} paid, ${pendingInvoices} pending`,
+      value: metrics.invoices_count,
+      subtitle: `${metrics.paid_invoices} paid, ${metrics.pending_invoices} pending`,
       icon: FileText,
       color: 'indigo',
       bgColor: 'bg-indigo-100',
@@ -104,25 +103,73 @@ const Dashboard = () => {
     },
     {
       title: 'Invoice Amount',
-      value: totalInvoiceAmount.toFixed(2),
-      subtitle: `${CURRENCY_SYMBOL} ${totalPaidAmount.toFixed(2)} paid, ${CURRENCY_SYMBOL} ${totalPendingAmount.toFixed(2)} pending`,
+      value: metrics.invoices_total.toFixed(2),
+      subtitle: `${CURRENCY_SYMBOL} ${metrics.invoices_paid_amount.toFixed(2)} paid, ${CURRENCY_SYMBOL} ${metrics.invoices_pending_amount.toFixed(2)} pending`,
       icon: DollarSign,
       color: 'teal',
       bgColor: 'bg-teal-100',
       iconColor: 'text-teal-600',
       borderColor: 'border-teal-600'
     }
-  ];
+  ] : [];
+
+  const handleRefresh = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const response = await apiGet('/core/metrics/');
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      setMetrics(data);
+    } catch (error) {
+      console.error('Error fetching metrics:', error);
+      setError(error.message);
+      showError(`Failed to load metrics: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <Layout>
       <div>
-        <div className="mb-6">
-          <h1 className="text-3xl font-bold text-gray-800 mb-2">Dashboard</h1>
-          <p className="text-gray-600">Overview of your POS system</p>
+        <div className="mb-6 flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-800 mb-2">Dashboard</h1>
+            <p className="text-gray-600">Overview of your POS system</p>
+          </div>
+          <button
+            onClick={handleRefresh}
+            disabled={loading}
+            className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white px-4 py-2 rounded-lg font-semibold flex items-center gap-2"
+          >
+            <RefreshCw size={20} className={loading ? 'animate-spin' : ''} />
+            Refresh
+          </button>
         </div>
 
+        {/* Error State */}
+        {error && (
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6">
+            Error loading metrics: {error}
+          </div>
+        )}
+
+        {/* Loading State */}
+        {loading && !metrics && (
+          <div className="bg-white rounded-xl shadow-md p-12 text-center mb-6">
+            <RefreshCw size={48} className="mx-auto mb-4 text-blue-600 animate-spin" />
+            <p className="text-gray-600">Loading metrics...</p>
+          </div>
+        )}
+
         {/* Stats Grid */}
+        {metrics && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
           {stats.map((stat, index) => {
             const Icon = stat.icon;
@@ -151,6 +198,7 @@ const Dashboard = () => {
             );
           })}
         </div>
+        )}
 
         {/* Recent Activity */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

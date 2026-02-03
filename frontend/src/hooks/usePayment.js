@@ -222,9 +222,10 @@ export const usePayment = ({
       const pointsValue = cashCustomer && cashPointsRedeemed ? (parseInt(cashPointsRedeemed || 0) * loyaltyPointsRate) : 0;
       const amountAfterPoints = Math.max(0, totalAmount - pointsValue);
       const received = parseFloat(amountReceived);
-      if (isNaN(received) || received < amountAfterPoints) {
-        return { success: false, error: `Insufficient amount received. Amount after points: ${CURRENCY_SYMBOL} ${amountAfterPoints.toFixed(2)}` };
+      if (isNaN(received) || received <= 0) {
+        return { success: false, error: `Please enter a valid payment amount greater than 0` };
       }
+      // Allow partial payments - no need to require full payment
     } else if (paymentMethod === 'mobile') {
       const validation = validatePhoneNumber(mobileNumber);
       if (!validation.valid) {
@@ -237,10 +238,17 @@ export const usePayment = ({
       const cashAmount = parseFloat(splitCashAmount || 0);
       const mobileAmount = parseFloat(splitMobileAmount || 0);
       const sum = cashAmount + mobileAmount;
-      if (Math.abs(sum - amountAfterPoints) > 0.01) {
+      // Allow partial payments - sum should be greater than 0 and not exceed amount after points
+      if (isNaN(cashAmount) || isNaN(mobileAmount) || sum <= 0) {
         return { 
           success: false, 
-          error: `Payment amounts don't match total after points. Cash: ${CURRENCY_SYMBOL} ${cashAmount.toFixed(2)} + Mpesa: ${CURRENCY_SYMBOL} ${mobileAmount.toFixed(2)} = ${CURRENCY_SYMBOL} ${sum.toFixed(2)}, but amount after points is ${CURRENCY_SYMBOL} ${amountAfterPoints.toFixed(2)}` 
+          error: `Please enter valid payment amounts. Both cash and mobile amounts must be greater than 0.` 
+        };
+      }
+      if (sum > amountAfterPoints + 0.01) {
+        return { 
+          success: false, 
+          error: `Payment amounts exceed total after points. Cash: ${CURRENCY_SYMBOL} ${cashAmount.toFixed(2)} + Mpesa: ${CURRENCY_SYMBOL} ${mobileAmount.toFixed(2)} = ${CURRENCY_SYMBOL} ${sum.toFixed(2)}, but amount after points is ${CURRENCY_SYMBOL} ${amountAfterPoints.toFixed(2)}` 
         };
       }
       const validation = validatePhoneNumber(mobileNumber);

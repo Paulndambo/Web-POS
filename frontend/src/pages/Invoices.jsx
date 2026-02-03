@@ -40,7 +40,7 @@ const Invoices = () => {
         customerAddress: invoice.address,
         dueDate: invoice.due_date,
         timestamp: invoice.created_at,
-        status: invoice.status?.toLowerCase() || 'pending',
+        status: invoice.status || 'pending',
         total: parseFloat(invoice.total_amount),
         amountPaid: parseFloat(invoice.amount_paid || 0),
         items_count: invoice.items_count || 0,
@@ -64,9 +64,9 @@ const Invoices = () => {
   const totalInvoiceAmount = invoices.reduce((sum, inv) => sum + inv.total, 0);
   const totalPaidAmount = invoices.reduce((sum, inv) => sum + inv.amountPaid, 0);
   const totalPendingAmount = totalInvoiceAmount - totalPaidAmount;
-  const paidInvoices = invoices.filter(inv => inv.status === 'paid').length;
-  const pendingInvoices = invoices.filter(inv => inv.status === 'pending').length;
-  const partialInvoices = invoices.filter(inv => inv.status === 'partial').length;
+  const paidInvoices = invoices.filter(inv => inv.status?.toLowerCase() === 'paid').length;
+  const pendingInvoices = invoices.filter(inv => inv.status?.toLowerCase() === 'pending').length;
+  const partialInvoices = invoices.filter(inv => inv.status?.toLowerCase() === 'partial' || inv.status?.toLowerCase() === 'partially paid').length;
 
   const filteredInvoices = invoices
     .filter(invoice => {
@@ -75,7 +75,7 @@ const Invoices = () => {
         (invoice.customerName && invoice.customerName.toLowerCase().includes(searchTerm.toLowerCase())) ||
         (invoice.customerEmail && invoice.customerEmail.toLowerCase().includes(searchTerm.toLowerCase()));
       
-      const matchesStatus = statusFilter === 'all' || invoice.status === statusFilter;
+      const matchesStatus = statusFilter === 'all' || invoice.status?.toLowerCase() === statusFilter.toLowerCase();
       
       return matchesSearch && matchesStatus;
     })
@@ -99,27 +99,45 @@ const Invoices = () => {
 
   const getStatusBadge = (invoice) => {
     const status = invoice.status || 'pending';
+    const statusLower = status.toLowerCase();
     const amountDue = invoice.total - (invoice.amountPaid || 0);
     
-    if (status === 'paid') {
+    // Format status display - capitalize first letter of each word
+    const formatStatus = (s) => {
+      if (!s) return 'Pending';
+      return s.split(' ').map(word => 
+        word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+      ).join(' ');
+    };
+    
+    const displayStatus = formatStatus(status);
+    
+    if (statusLower === 'paid') {
       return (
         <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-semibold text-xs sm:text-sm bg-green-100 text-green-700">
           <CheckCircle size={16} />
-          Paid
+          {displayStatus}
         </div>
       );
-    } else if (status === 'partial') {
+    } else if (statusLower === 'partial' || statusLower === 'partially paid') {
       return (
         <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-semibold text-xs sm:text-sm bg-blue-100 text-blue-700">
           <AlertCircle size={16} />
-          Partial ({CURRENCY_SYMBOL} {amountDue.toFixed(2)} due)
+          {displayStatus} ({CURRENCY_SYMBOL} {amountDue.toFixed(2)} due)
+        </div>
+      );
+    } else if (statusLower === 'accepted') {
+      return (
+        <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-semibold text-xs sm:text-sm bg-indigo-100 text-indigo-700">
+          <CheckCircle size={16} />
+          {displayStatus}
         </div>
       );
     } else {
       return (
         <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-semibold text-xs sm:text-sm bg-yellow-100 text-yellow-700">
           <Clock size={16} />
-          Pending
+          {displayStatus}
         </div>
       );
     }

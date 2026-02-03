@@ -81,3 +81,11 @@ class SupplierPayment(AbstractBaseModel):
 
     def __str__(self):
         return f"Payment of {self.amount_paid} to {self.supplier.name}"
+    
+
+class CustomerInvoicePayment(AbstractBaseModel):
+    business = models.ForeignKey("core.Business", on_delete=models.SET_NULL, null=True, related_name="invoice_payments")
+    branch = models.ForeignKey("core.Branch", on_delete=models.SET_NULL, null=True, related_name="invoice_payments")
+    invoice = models.ForeignKey("invoices.Invoice", on_delete=models.CASCADE, related_name="invoice_payments")
+    amount_paid = models.DecimalField(max_digits=100, decimal_places=2)
+    payment_method = models.CharField(max_length=255)

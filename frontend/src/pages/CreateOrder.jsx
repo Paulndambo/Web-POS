@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Search, ShoppingCart, Trash2, Plus, Minus, Receipt, X, ArrowLeft, Utensils } from 'lucide-react';
+import { Search, ShoppingCart, Trash2, Plus, Minus, Receipt, X, ArrowLeft, Utensils, LayoutDashboard } from 'lucide-react';
 import { useOrders } from '../contexts/OrdersContext.jsx';
 import { useAuth } from '../contexts/AuthContext.jsx';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import Layout from '../components/Layout.jsx';
 import { CURRENCY_SYMBOL } from '../config/currency.js';
 import { showWarning, showError } from '../utils/toast.js';
@@ -359,7 +359,7 @@ const CreateOrder = () => {
   };
 
   return (
-    <Layout>
+    <Layout hideSidebar={true}>
       <div className="h-screen flex flex-col">
         <style>{`
         @media print {
@@ -381,23 +381,29 @@ const CreateOrder = () => {
         }
       `}</style>
 
+      {/* Header with Dashboard Link */}
+      <div className="bg-white shadow-sm border-b border-gray-200 px-2 sm:px-4 py-2 sm:py-3 flex items-center justify-between">
+        <Link
+          to="/dashboard"
+          className="flex items-center gap-2 px-3 sm:px-4 py-2 text-sm sm:text-base text-gray-700 hover:text-blue-600 hover:bg-gray-100 rounded-lg transition-colors"
+        >
+          <LayoutDashboard size={20} />
+          <span className="font-medium">Dashboard</span>
+        </Link>
+        <h1 className="text-lg sm:text-xl font-bold text-gray-800">Create New Order</h1>
+        <button
+          onClick={() => navigate('/orders')}
+          className="flex items-center gap-2 px-3 sm:px-4 py-2 text-sm sm:text-base text-gray-700 hover:text-blue-600 hover:bg-gray-100 rounded-lg transition-colors"
+          title="Back to Orders"
+        >
+          <ArrowLeft size={20} />
+          <span className="font-medium hidden sm:inline">Orders</span>
+        </button>
+      </div>
+
       <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
         {/* Products Section */}
         <div className="flex-1 flex flex-col p-2 sm:p-4 overflow-hidden order-2 lg:order-1">
-          {/* Header with back button */}
-          <div className="mb-2 sm:mb-4 flex items-center gap-3">
-            <button
-              onClick={() => navigate('/orders')}
-              className="p-2 hover:bg-gray-200 rounded-lg transition"
-              title="Back to Orders"
-            >
-              <ArrowLeft size={20} />
-            </button>
-            <div>
-              <h2 className="text-lg sm:text-xl font-bold text-gray-800">Create New Order</h2>
-              <p className="text-xs sm:text-sm text-gray-600">Add items to create a pending order</p>
-            </div>
-          </div>
 
           {/* Search Bar */}
           <div className="mb-2 sm:mb-4">
