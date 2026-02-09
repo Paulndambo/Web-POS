@@ -45,7 +45,6 @@ class BusinessLedger(AbstractBaseModel):
             models.Index(fields=["branch", "date"]),
         ]
         
-
     def clean(self):
         """
         Enforce logical consistency between record_type and amounts.
@@ -89,3 +88,22 @@ class CustomerInvoicePayment(AbstractBaseModel):
     invoice = models.ForeignKey("invoices.Invoice", on_delete=models.CASCADE, related_name="invoice_payments")
     amount_paid = models.DecimalField(max_digits=100, decimal_places=2)
     payment_method = models.CharField(max_length=255)
+
+
+
+class MpesaTransaction(AbstractBaseModel):
+    merchant_request_id = models.CharField(max_length=255, null=True, blank=True)
+    checkout_request_id = models.CharField(max_length=255, null=True, blank=True)
+    response_desc = models.CharField(max_length=255, null=True, blank=True)
+    customer_message = models.CharField(max_length=255, null=True, blank=True)
+    result_code = models.IntegerField(null=True, blank=True)
+    result_desc = models.CharField(max_length=255, null=True, blank=True)
+    amount = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    mpesa_receipt_number = models.CharField(max_length=20, null=True, blank=True)
+    balance = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    transaction_date = models.CharField(max_length=14, null=True, blank=True)
+    phone_number = models.CharField(max_length=15, null=True, blank=True)
+    status = models.CharField(max_length=20, default='Pending')
+
+    def __str__(self):
+        return f"M-Pesa Transaction {self.mpesa_receipt_number} - {self.result_desc}"

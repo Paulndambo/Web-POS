@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Layout from '../components/Layout.jsx';
-import { Building2, Plus, Edit, X, Save, Phone, Mail, RefreshCw, AlertCircle, Globe, Percent, Wallet } from 'lucide-react';
+import { Building2, Plus, Edit, X, Save, Phone, Mail, RefreshCw, AlertCircle, Globe, Percent, Wallet, Eye } from 'lucide-react';
 import { showSuccess, showError, showWarning } from '../utils/toast.js';
 import { apiGet, apiPost, apiPut } from '../utils/api.js';
 import { useAuth } from '../contexts/AuthContext.jsx';
 
 const BNPLProviders = () => {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const [providers, setProviders] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -327,13 +329,22 @@ const BNPLProviders = () => {
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-center">
-                      <button
-                        onClick={() => handleOpenModal(provider)}
-                        className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition"
-                        title="Edit Provider"
-                      >
-                        <Edit size={18} />
-                      </button>
+                      <div className="flex items-center justify-center gap-2">
+                        <button
+                          onClick={() => navigate(`/bnpl-provider/${provider.id}`)}
+                          className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition"
+                          title="View Details"
+                        >
+                          <Eye size={18} />
+                        </button>
+                        <button
+                          onClick={() => handleOpenModal(provider)}
+                          className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition"
+                          title="Edit Provider"
+                        >
+                          <Edit size={18} />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}

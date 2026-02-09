@@ -4,7 +4,9 @@ from rest_framework.permissions import IsAuthenticated
 
 
 from bnpl.models import BNPLServiceProvider, BNPLPurchase, BNPLInstallment
-from bnpl.serializers import BNPLServiceProviderSerializer, BNPLPurchaseSerializer, BNPLInstallmentSerializer, BNPLPurchaseDetailSerializer
+from bnpl.serializers import (
+    BNPLServiceProviderSerializer, BNPLServiceProviderDetailSerializer,
+    BNPLPurchaseSerializer, BNPLInstallmentSerializer, BNPLPurchaseDetailSerializer)
 
 # Create your views here.
 class BNPLServiceProviderListCreateView(generics.ListCreateAPIView):
@@ -15,7 +17,7 @@ class BNPLServiceProviderListCreateView(generics.ListCreateAPIView):
 
 class BNPLServiceProviderDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = BNPLServiceProvider.objects.all()
-    serializer_class = BNPLServiceProviderSerializer
+    serializer_class = BNPLServiceProviderDetailSerializer
     permission_classes = [IsAuthenticated]
 
     lookup_field = 'pk'

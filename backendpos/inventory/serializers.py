@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from inventory.models import InventoryItem, Category, Menu
+from inventory.models import InventoryItem, Category, Menu, InventoryLog
 
 
 
@@ -35,3 +35,14 @@ class StockRestokSerializer(serializers.Serializer):
     inventory_item_id = serializers.IntegerField()
     action_type = serializers.CharField(max_length=255)
     quantity = serializers.FloatField(default=1)
+
+
+
+class InventoryLogSerializer(serializers.ModelSerializer):
+    business = serializers.CharField(source="business.name", read_only=True)
+    branch = serializers.CharField(source="branch.name", read_only=True)
+    item = serializers.CharField(source="item.name", read_only=True)
+    actioned_by = serializers.CharField(source="actioned_by.get_full_name", read_only=True)
+    class Meta:
+        model = InventoryLog
+        fields = "__all__"

@@ -23,7 +23,7 @@ class LoyaltyCardAPIView(BusinessScopedQuerysetMixin, generics.ListCreateAPIView
 
     def post(self, request, *args, **kwargs):
         data = request.data
-        data["business"] = request.user.id
+        #data["business"] = request.user.id
 
         serializer = self.serializer_class(data=data)
         if serializer.is_valid(raise_exception=True):

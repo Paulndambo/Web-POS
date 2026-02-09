@@ -55,7 +55,7 @@ const Dashboard = () => {
   const stats = metrics ? [
     {
       title: 'Total Revenue',
-      value: (metrics.orders_total_paid + metrics.invoices_paid_amount).toFixed(2),
+      value: ((metrics.orders_total_paid ?? 0) + (metrics.invoices_paid_amount ?? 0)).toFixed(2),
       icon: DollarSign,
       color: 'green',
       bgColor: 'bg-green-100',
@@ -64,7 +64,7 @@ const Dashboard = () => {
     },
     {
       title: 'Pending Revenue',
-      value: (metrics.orders_total_pending + metrics.invoices_pending_amount).toFixed(2),
+      value: ((metrics.orders_total_pending ?? 0) + (metrics.invoices_pending_amount ?? 0)).toFixed(2),
       icon: Clock,
       color: 'yellow',
       bgColor: 'bg-yellow-100',
@@ -73,8 +73,8 @@ const Dashboard = () => {
     },
     {
       title: 'Total Orders',
-      value: metrics.orders_count,
-      subtitle: `${metrics.paid_orders} paid, ${metrics.pending_orders} pending`,
+      value: metrics.orders_count ?? 0,
+      subtitle: `${metrics.paid_orders ?? 0} paid, ${metrics.pending_orders ?? 0} pending`,
       icon: Receipt,
       color: 'blue',
       bgColor: 'bg-blue-100',
@@ -83,7 +83,7 @@ const Dashboard = () => {
     },
     {
       title: 'Today\'s Revenue',
-      value: metrics.revenue_today.toFixed(2),
+      value: (metrics.revenue_today ?? 0).toFixed(2),
       subtitle: `Combined orders and invoices`,
       icon: TrendingUp,
       color: 'purple',
@@ -93,8 +93,8 @@ const Dashboard = () => {
     },
     {
       title: 'Total Invoices',
-      value: metrics.invoices_count,
-      subtitle: `${metrics.paid_invoices} paid, ${metrics.pending_invoices} pending`,
+      value: metrics.invoices_count ?? 0,
+      subtitle: `${metrics.paid_invoices ?? 0} paid, ${metrics.pending_invoices ?? 0} pending`,
       icon: FileText,
       color: 'indigo',
       bgColor: 'bg-indigo-100',
@@ -103,8 +103,8 @@ const Dashboard = () => {
     },
     {
       title: 'Invoice Amount',
-      value: metrics.invoices_total.toFixed(2),
-      subtitle: `${CURRENCY_SYMBOL} ${metrics.invoices_paid_amount.toFixed(2)} paid, ${CURRENCY_SYMBOL} ${metrics.invoices_pending_amount.toFixed(2)} pending`,
+      value: (metrics.invoices_total ?? 0).toFixed(2),
+      subtitle: `${CURRENCY_SYMBOL} ${(metrics.invoices_paid_amount ?? 0).toFixed(2)} paid, ${CURRENCY_SYMBOL} ${(metrics.invoices_pending_amount ?? 0).toFixed(2)} pending`,
       icon: DollarSign,
       color: 'teal',
       bgColor: 'bg-teal-100',
@@ -227,7 +227,7 @@ const Dashboard = () => {
                       <div className={`font-bold ${
                         order.status === 'paid' ? 'text-green-600' : 'text-yellow-600'
                       }`}>
-                        {CURRENCY_SYMBOL} {order.total.toFixed(2)}
+                        {CURRENCY_SYMBOL} {(order.total ?? 0).toFixed(2)}
                       </div>
                       <div className={`text-xs px-2 py-1 rounded ${
                         order.status === 'paid' 
@@ -281,7 +281,7 @@ const Dashboard = () => {
                     </div>
                     <div className="text-right">
                       <div className="font-bold text-indigo-600">
-                        {CURRENCY_SYMBOL} {invoice.total.toFixed(2)}
+                        {CURRENCY_SYMBOL} {(invoice.total ?? 0).toFixed(2)}
                       </div>
                       <div className={`text-xs px-2 py-1 rounded ${
                         invoice.status === 'paid'

@@ -5,7 +5,8 @@ import { CURRENCY_SYMBOL } from '../config/currency.js';
 import { 
   ArrowLeft, Users, DollarSign, 
   TrendingUp, Calendar, RefreshCw, AlertCircle,
-  CreditCard, CheckCircle, Clock, Building2, FileText, Eye
+  CreditCard, CheckCircle, Clock, Building2, FileText, Eye,
+  ChevronLeft, ChevronRight
 } from 'lucide-react';
 import { apiGet } from '../utils/api.js';
 import { useAuth } from '../contexts/AuthContext.jsx';
@@ -20,6 +21,10 @@ const ViewBNPLPurchase = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [installments, setInstallments] = useState([]);
+  
+  // Pagination state for installments
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
 
   const fetchPurchaseDetails = async () => {
     try {
@@ -52,6 +57,11 @@ const ViewBNPLPurchase = () => {
       setLoading(false);
     }
   }, [authLoading, isAuthenticated, id]);
+
+  // Reset to page 1 when installments change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [installments.length]);
 
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
@@ -144,6 +154,12 @@ const ViewBNPLPurchase = () => {
   const pendingInstallments = installments.filter(i => i.status === 'Pending').length;
   const totalExpected = installments.reduce((sum, i) => sum + parseFloat(i.amount_expected || 0), 0);
   const totalPaidFromInstallments = installments.reduce((sum, i) => sum + parseFloat(i.amount_paid || 0), 0);
+  
+  // Pagination calculations for installments
+  const totalPages = Math.ceil(installments.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedInstallments = installments.slice(startIndex, endIndex);
 
   return (
     <Layout>
@@ -405,17 +421,18 @@ const ViewBNPLPurchase = () => {
                     </td>
                   </tr>
                 ) : (
-                  installments.map((installment, index) => {
+                  paginatedInstallments.map((installment, index) => {
                     const amountExpected = parseFloat(installment.amount_expected || 0);
                     const amountPaid = parseFloat(installment.amount_paid || 0);
                     const isPaid = amountPaid > 0 || installment.status === 'Paid';
                     const isOverdue = !isPaid && new Date(installment.due_date) < new Date();
+                    const installmentNumber = startIndex + index + 1;
                     
                     return (
                       <tr key={installment.id} className={`hover:bg-gray-50 transition ${isOverdue ? 'bg-red-50' : ''}`}>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="text-sm font-semibold text-gray-800">
-                            {index + 1}
+                            {installmentNumber}
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
@@ -469,6 +486,36 @@ const ViewBNPLPurchase = () => {
               </tbody>
             </table>
           </div>
+          
+          {/* Pagination Controls */}
+          {totalPages > 1 && (
+            <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-between">
+              <div className="text-sm text-gray-600">
+                Showing {startIndex + 1} to {Math.min(endIndex, installments.length)} of {installments.length} installments
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                  disabled={currentPage === 1}
+                  className="p-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                  title="Previous Page"
+                >
+                  <ChevronLeft size={18} />
+                </button>
+                <span className="text-sm text-gray-700 px-3">
+                  Page {currentPage} of {totalPages}
+                </span>
+                <button
+                  onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                  disabled={currentPage === totalPages}
+                  className="p-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                  title="Next Page"
+                >
+                  <ChevronRight size={18} />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </Layout>

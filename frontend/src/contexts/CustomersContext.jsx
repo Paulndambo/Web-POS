@@ -46,7 +46,7 @@ const transformCustomerToBackend = (frontendCustomer) => {
 };
 
 export const CustomersProvider = ({ children }) => {
-  const { isAuthenticated, loading: authLoading } = useAuth();
+  const { isAuthenticated, loading: authLoading, user } = useAuth();
   const [customers, setCustomers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -97,6 +97,12 @@ export const CustomersProvider = ({ children }) => {
       };
       
       const backendData = transformCustomerToBackend(customerDataWithDefaults);
+      
+      // Ensure business field is set from the logged-in user's business_id
+      const businessId = user?.business_id || user?.business;
+      if (businessId) {
+        backendData.business = businessId;
+      }
       
       const response = await apiPost('/customers/loyalty-cards/', backendData);
       

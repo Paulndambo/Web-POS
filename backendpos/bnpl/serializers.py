@@ -27,3 +27,12 @@ class BNPLServiceProviderSerializer(serializers.ModelSerializer):
     class Meta:
         model = BNPLServiceProvider
         fields = '__all__'
+
+
+class BNPLServiceProviderDetailSerializer(serializers.ModelSerializer):
+    business_name=serializers.CharField(source="business.name", read_only=True)
+    branch_name=serializers.CharField(source="branch.name", read_only=True)
+    bnpl_purchases = BNPLPurchaseSerializer(many=True)
+    class Meta:
+        model = BNPLServiceProvider
+        fields = '__all__'

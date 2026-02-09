@@ -47,7 +47,7 @@ class PurchaseOrder(AbstractBaseModel):
     business = models.ForeignKey("core.Business", on_delete=models.SET_NULL, null=True, related_name="businesspurchaseorders")
     branch = models.ForeignKey("core.Branch", on_delete=models.SET_NULL, null=True, related_name="branchpurchaseorders")
     supplier = models.ForeignKey(Supplier, on_delete=models.CASCADE, related_name="purchaseorders")
-    order_date = models.DateField()
+    order_date = models.DateField(null=True)
     expected_delivery_date = models.DateField(null=True)
     status = models.CharField(max_length=50, default="Pending")
     total_amount = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0'))
@@ -55,7 +55,7 @@ class PurchaseOrder(AbstractBaseModel):
     def __str__(self):
         return f"PO #{self.id} - {self.supplier.name}"
     
-    
+                     
 class PurchaseOrderItem(AbstractBaseModel):
     business = models.ForeignKey("core.Business", on_delete=models.SET_NULL, null=True, related_name="businesspurchaseorderitems")
     branch = models.ForeignKey("core.Branch", on_delete=models.SET_NULL, null=True, related_name="branchpurchaseorderitems")

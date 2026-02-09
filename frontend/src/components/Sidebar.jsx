@@ -27,7 +27,9 @@ import {
   ShoppingBag,
   Link2,
   BookOpen,
-  Wallet
+  Wallet,
+  Database,
+  BarChart3
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext.jsx';
 
@@ -124,6 +126,27 @@ const MENU_STRUCTURE = [
       { path: '/bnpl-providers', label: 'Providers', icon: Building2 },
       { path: '/bnpl-loans', label: 'Loans', icon: CreditCard },
     ]
+  },
+  {
+    key: 'reports',
+    label: 'Reports',
+    icon: BarChart3,
+    type: 'group',
+    children: [
+      { path: '/sales-reports', label: 'Sales Reports', icon: BarChart3 },
+      { path: '/inventory-reports', label: 'Inventory Reports', icon: FileText },
+      { path: '/financial-reports', label: 'Financial Reports', icon: DollarSign },
+    ]
+  },
+  {
+    key: 'data',
+    label: 'Data',
+    icon: Database,
+    type: 'group',
+    children: [
+      { path: '/data-export', label: 'Data Export', icon: Database },
+      { path: '/data-import', label: 'Data Import', icon: Package },
+    ]
   }
 ];
 
@@ -139,7 +162,9 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
     loyalty: false,
     'supply-chain': false,
     management: false,
-    bnpl: false
+    bnpl: false,
+    data: false,
+    reports: false
   });
 
   // Auto-expand menu based on current path
@@ -153,7 +178,9 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
       loyalty: ['/customer', '/gift-card'],
       'supply-chain': ['/supplier', '/product-supplier', '/supply-request', '/purchase-order', '/goods-receipt'],
       management: ['/business', '/branch', '/user'],
-      bnpl: ['/bnpl-provider', '/bnpl-loan']
+      bnpl: ['/bnpl-provider', '/bnpl-loan'],
+      data: ['/data-export', '/data-import'],
+      reports: ['/sales-reports', '/inventory-reports', '/financial-reports']
     };
 
     Object.entries(menuMapping).forEach(([key, paths]) => {

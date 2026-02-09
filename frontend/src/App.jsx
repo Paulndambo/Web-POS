@@ -44,6 +44,12 @@ import BusinessLedger from './pages/BusinessLedger.jsx';
 import BNPLProviders from './pages/BNPLProviders.jsx';
 import BNPLPurchases from './pages/BNPLPurchases.jsx';
 import ViewBNPLPurchase from './pages/ViewBNPLPurchase.jsx';
+import ViewBNPLProvider from './pages/ViewBNPLProvider.jsx';
+import DataExport from './pages/DataExport.jsx';
+import DataImport from './pages/DataImport.jsx';
+import SalesReports from './pages/SalesReports.jsx';
+import InventoryReports from './pages/InventoryReports.jsx';
+import FinancialReports from './pages/FinancialReports.jsx';
 
 function App() {
   return (
@@ -323,6 +329,14 @@ function App() {
                   }
                 />
                 <Route
+                  path="/bnpl-provider/:id"
+                  element={
+                    <ProtectedRoute>
+                      <ViewBNPLProvider />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
                   path="/bnpl-loans"
                   element={
                     <ProtectedRoute>
@@ -335,6 +349,46 @@ function App() {
                   element={
                     <ProtectedRoute>
                       <ViewBNPLPurchase />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/data-export"
+                  element={
+                    <ProtectedRoute>
+                      <DataExport />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/data-import"
+                  element={
+                    <ProtectedRoute>
+                      <DataImport />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/sales-reports"
+                  element={
+                    <ProtectedRoute>
+                      <SalesReports />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/inventory-reports"
+                  element={
+                    <ProtectedRoute>
+                      <InventoryReports />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/financial-reports"
+                  element={
+                    <ProtectedRoute>
+                      <FinancialReports />
                     </ProtectedRoute>
                   }
                 />

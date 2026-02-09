@@ -55,6 +55,7 @@ const Orders = () => {
         receiptNo: order.order_number,
         timestamp: order.created_at,
         status: order.status?.toLowerCase() || 'pending',
+        orderType: order.order_type || 'Paid',
         subtotal: parseFloat(order.sub_total || 0),
         tax: parseFloat(order.tax || 0),
         total: parseFloat(order.total_amount || 0),
@@ -549,6 +550,9 @@ const Orders = () => {
                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                       Status
                     </th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                      Order Type
+                    </th>
                     <th className="px-6 py-4 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">
                       Total Amount
                     </th>
@@ -580,7 +584,21 @@ const Orders = () => {
                           ) : (
                             <Clock size={14} />
                           )}
-                          {order.status === 'paid' ? 'Paid' : 'Pending'}
+                          {order.status ? order.status.charAt(0).toUpperCase() + order.status.slice(1) : 'Pending'}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-semibold text-xs ${
+                          order.orderType === 'BNPL' 
+                            ? 'bg-purple-100 text-purple-700' 
+                            : 'bg-blue-100 text-blue-700'
+                        }`}>
+                          {order.orderType === 'BNPL' ? (
+                            <Wallet size={14} />
+                          ) : (
+                            <Banknote size={14} />
+                          )}
+                          {order.orderType || 'Paid'}
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right">

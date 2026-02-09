@@ -12,12 +12,11 @@ from core.mixins import BusinessScopedQuerysetMixin
 from orders.serializers import (
     PlacePOSOrderSerializer, PayOrderSerializer, 
     OrderSerializer, OrderDetailSerializer,
-    OrderItemUpdateSerializer, CreateOrderItemsSerializer
+    OrderItemUpdateSerializer, CreateOrderItemsSerializer, OrderItemSerializer
 )
 from orders.models import Order, OrderItem
 from payments.models import Payment
-from customers.models import LoyaltyCard
-from finances.models import StoreLoan
+
 
 from finances.store_loan_mixin import ProcessStoreLoanMixin
 from customers.customer_points_processing import CustomerPointsProcessor, CustomerPointsRedeemer
@@ -33,6 +32,12 @@ class OrderDetailAPIView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = OrderDetailSerializer
 
     lookup_field = "pk"
+
+
+class OrderItemAPIView(generics.ListAPIView):
+    queryset = OrderItem.objects.all().order_by("-created_at")
+    serializer_class = OrderItemSerializer
+    permission_classes = [IsAuthenticated]
 
 
 class POSOrderPlacementAPIView(generics.CreateAPIView):

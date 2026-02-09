@@ -3,7 +3,8 @@ from inventory.views import (
     InventoryItemAPIView, InventoryItemDetailAPIView, 
     CategoryAPIView, CategoryDetailAPIView,
     MenuAPIView, MenuDetailAPIView,
-    StockRestockAPIView
+    StockRestockAPIView,
+    InventoryLogAPIView
 )   
 
 urlpatterns = [
@@ -14,5 +15,6 @@ urlpatterns = [
 
     path("menus/", MenuAPIView.as_view(), name="menus"),
     path("menus/<int:pk>/details/", MenuDetailAPIView.as_view(), name="menu-details"),
-    path("update-stock-item/", StockRestockAPIView.as_view(), name="update-stock-item")
+    path("update-stock-item/", StockRestockAPIView.as_view(), name="update-stock-item"),
+    path("logs/", InventoryLogAPIView.as_view(), name="inventory-logs"),
 ]

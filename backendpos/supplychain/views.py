@@ -1,8 +1,10 @@
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework import generics, status
+from decimal import Decimal
 
 from django.utils import timezone
+from datetime import datetime
 
 from django.db import transaction
 
@@ -22,9 +24,11 @@ from supplychain.serializers import (
 )
 from inventory.models import InventoryItem, InventoryLog
 from invoices.models import SupplierInvoice, SupplierInvoiceItem
+
+date_today = datetime.now().date()
 # Create your views here.
 class SupplierListCreateView( BusinessScopedQuerysetMixin, generics.ListCreateAPIView):
-    queryset = Supplier.objects.all()
+    queryset = Supplier.objects.all().order_by("-created_at")
     serializer_class = SupplierSerializer
     permission_classes = [IsAuthenticated]
 
@@ -37,7 +41,7 @@ class SupplierRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
 
 
 class ProductSupplierListCreateView(BusinessScopedQuerysetMixin, generics.ListCreateAPIView):
-    queryset = ProductSupplier.objects.all()
+    queryset = ProductSupplier.objects.all().order_by("-created_at")
     serializer_class = ProductSupplierSerializer
     permission_classes = [IsAuthenticated]
 
@@ -45,15 +49,17 @@ class ProductSupplierListCreateView(BusinessScopedQuerysetMixin, generics.ListCr
     def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         if serializer.is_valid(raise_exception=True):
-            supplier = serializer.save()
-            supplier.product.buying_price = supplier.cost_price
-            supplier.product.save()
-            return Response({"detail": "Product Supplier created successfully.", "id": supplier.id}, status=status.HTTP_201_CREATED)
+            product_supplier = serializer.save()
+
+            product_supplier.product.supplier=product_supplier.supplier
+            product_supplier.product.buying_price = product_supplier.cost_price
+            product_supplier.product.save()
+            return Response({"detail": "Product Supplier created successfully.", "id": product_supplier.id}, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 class ProductSupplierRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
-    queryset = ProductSupplier.objects.all()
+    queryset = ProductSupplier.objects.all().order_by("-created_at")
     serializer_class = ProductSupplierSerializer
     permission_classes = [IsAuthenticated]
     lookup_field = "pk"
@@ -69,9 +75,54 @@ class ProductSupplierRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPI
 
 
 class SupplyRequestListCreateView(BusinessScopedQuerysetMixin, generics.ListCreateAPIView):
-    queryset = SupplyRequest.objects.all()
+    queryset = SupplyRequest.objects.all().order_by("-created_at")
     serializer_class = SupplyRequestSerializer
     permission_classes = [IsAuthenticated]
+
+    @transaction.atomic
+    def post(self, request, *args, **kwargs):
+        serializer = self.serializer_class(data=request.data)
+
+        if serializer.is_valid(raise_exception=True):
+            sr = serializer.save()
+
+            if sr.product.supplier:
+                print("This part of code was reached!!!!")
+
+                ps = ProductSupplier.objects.get(id=sr.product.supplier.id)
+                po = PurchaseOrder.objects.filter(supplier=sr.product.supplier, status="Pending").first()
+
+                if not po:
+                    po = PurchaseOrder.objects.create(
+                        business=sr.business,
+                        branch=sr.branch,
+                        supplier=sr.product.supplier,
+                        order_date=date_today,
+                        total_amount=Decimal(sr.quantity) * Decimal(ps.cost_price)
+                    )
+
+                po.total_amount += Decimal(sr.quantity) * Decimal(ps.cost_price)
+                po.save()
+
+                sr.status = "Added to PO"
+                sr.save()
+
+                PurchaseOrderItem.objects.create(
+                    purchase_order=po,
+                    business=sr.business,
+                    branch=sr.branch,
+                    product=sr.product,
+                    quantity=sr.quantity,
+                    unit_cost=sr.product.buying_price,
+                    item_total=Decimal(sr.quantity) * Decimal(sr.product.buying_price)
+                )
+            else:
+                print("The supply request product has no supplier!!")
+            return Response({ "success": "Supply request raised successfully" }, status=status.HTTP_201_CREATED)
+
+
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
 
 
 class SupplyRequestRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
@@ -82,7 +133,7 @@ class SupplyRequestRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIVi
 
 
 class PurchaseOrderListCreateView(BusinessScopedQuerysetMixin, generics.ListCreateAPIView):
-    queryset = PurchaseOrder.objects.all()
+    queryset = PurchaseOrder.objects.all().order_by("-created_at")
     serializer_class = PurchaseOrderSerializer
     permission_classes = [IsAuthenticated]
 
@@ -248,8 +299,8 @@ class ReceivePurchaseOrderItemView(generics.CreateAPIView):
 
             item_total = poi.unit_cost * received_quantity
             SupplierInvoiceItem.objects.create(
-                business=request.business,
-                branch=request.branch,
+                business=purchase_order.business,
+                branch=purchase_order.branch,
                 invoice=supplier_invoice,
                 product=poi.product,
                 quantity=received_quantity,
@@ -263,6 +314,10 @@ class ReceivePurchaseOrderItemView(generics.CreateAPIView):
             
             poi.status = "Received" if poi.quantity > poi.received_quantity else "Partially Received"
             poi.save()
+
+            if purchase_order.orderitems.filter(status="Pending") <= 0:
+                purchase_order.status="Completed"
+                purchase_order.save()
 
 
             return Response({"detail": "Purchase Order Item received successfully."}, status=status.HTTP_200_OK)

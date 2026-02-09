@@ -21,7 +21,8 @@ import {
   TrendingDown,
   Trash2,
   CheckCircle,
-  XCircle
+  XCircle,
+  Send
 } from 'lucide-react';
 import { CURRENCY_SYMBOL } from '../config/currency.js';
 import { showError, showSuccess, showWarning } from '../utils/toast.js';
@@ -692,7 +693,7 @@ const ViewPurchaseOrder = () => {
             </div>
           </div>
           <div className="flex gap-3 flex-wrap">
-            {purchaseOrder.status === 'Pending' && (
+            {purchaseOrder.status === 'Pending' && purchaseOrder.has_items === true && (
               <button
                 onClick={() => handleUpdateStatus('Approved')}
                 disabled={updatingStatus}
@@ -704,12 +705,11 @@ const ViewPurchaseOrder = () => {
             )}
             {purchaseOrder.status === 'Approved' && (
               <button
-                onClick={() => handleUpdateStatus('Completed')}
-                disabled={updatingStatus}
-                className="bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white px-6 py-3 rounded-lg font-semibold flex items-center justify-center gap-2 shadow-md hover:shadow-lg transition"
+                onClick={() => {}}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-semibold flex items-center justify-center gap-2 shadow-md hover:shadow-lg transition"
               >
-                <CheckCircle size={20} />
-                {updatingStatus ? 'Completing...' : 'Complete Purchase Order'}
+                <Send size={20} />
+                Send Order
               </button>
             )}
             {(purchaseOrder.status === 'Pending' || purchaseOrder.status === 'Approved') && (

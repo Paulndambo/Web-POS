@@ -21,7 +21,7 @@ class BNPLPurchase(AbstractBaseModel):
     business=models.ForeignKey("core.Business", on_delete=models.CASCADE, related_name="bnpl_purchases")
     branch=models.ForeignKey("core.Branch", on_delete=models.CASCADE, related_name="bnpl_purchases")
     customer = models.ForeignKey("customers.LoyaltyCard", on_delete=models.CASCADE)
-    service_provider = models.ForeignKey(BNPLServiceProvider, on_delete=models.CASCADE)
+    service_provider = models.ForeignKey(BNPLServiceProvider, on_delete=models.CASCADE, related_name="bnpl_purchases")
     order = models.ForeignKey("orders.Order", on_delete=models.CASCADE)
     total_amount = models.DecimalField(max_digits=10, decimal_places=2)
     down_payment = models.DecimalField(max_digits=10, decimal_places=2)

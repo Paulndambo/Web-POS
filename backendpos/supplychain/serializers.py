@@ -41,10 +41,15 @@ class PurchaseOrderDetailSerializer(serializers.ModelSerializer):
     bussiness_name = serializers.CharField(source='business.name', read_only=True)
     branch_name = serializers.CharField(source='branch.name', read_only=True)
     supplier_name = serializers.CharField(source='supplier.name', read_only=True)
+    has_items = serializers.SerializerMethodField()
 
     class Meta:
         model = PurchaseOrder
         fields = '__all__'
+
+    
+    def get_has_items(self, obj):
+        return True if obj.orderitems.count() > 0 else False
 
 
 class PurchaseOrderItemCreateSerializer(serializers.Serializer):

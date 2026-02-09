@@ -10,7 +10,6 @@ class OrderItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = OrderItem
         fields = ["id", "item_name", "unit_price", "quantity", "item_total"]
-
     
     def get_item_name(self, obj):
         return obj.inventory_item.name

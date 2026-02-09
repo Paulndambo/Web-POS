@@ -214,7 +214,7 @@ const ViewOrder = () => {
     );
   }
 
-  const status = order.status || 'paid';
+  const status = order?.status || 'pending';
   const categories = ['All', ...new Set(products.map(p => p.category))];
 
   const filteredProducts = products.filter(p => {
@@ -569,7 +569,7 @@ const ViewOrder = () => {
             <div className="flex-1 min-w-0">
               <h2 className="text-xl sm:text-2xl md:text-3xl font-bold text-gray-800 truncate">Receipt #{order.receiptNo}</h2>
               <p className="text-sm sm:text-base text-gray-600">
-                {status === 'paid' ? 'Paid' : 'Pending Payment'}
+                {status ? status.charAt(0).toUpperCase() + status.slice(1) : 'Pending'}
               </p>
             </div>
           </div>
@@ -643,7 +643,7 @@ const ViewOrder = () => {
                     ) : (
                       <Clock size={16} />
                     )}
-                    {status === 'paid' ? 'Paid' : 'Pending Payment'}
+                    {status ? status.charAt(0).toUpperCase() + status.slice(1) : 'Pending'}
                   </div>
                 </div>
               </div>
@@ -808,7 +808,7 @@ const ViewOrder = () => {
                   <p className={`text-sm font-semibold ${
                     status === 'paid' ? 'text-green-700' : 'text-yellow-700'
                   }`}>
-                    Status: {status === 'paid' ? 'Paid' : 'Pending Payment'}
+                    Status: {status ? status.charAt(0).toUpperCase() + status.slice(1) : 'Pending'}
                   </p>
                 </div>
               </div>

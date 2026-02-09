@@ -78,6 +78,8 @@ class SupplierInvoice(AbstractBaseModel):
     
 
 class SupplierInvoiceItem(AbstractBaseModel):
+    business = models.ForeignKey("core.Business", on_delete=models.SET_NULL, null=True, related_name="businesssupplierinvoicesitems")
+    branch = models.ForeignKey("core.Branch", on_delete=models.SET_NULL, null=True, related_name="branchsupplierinvoicesitems")
     invoice = models.ForeignKey(SupplierInvoice, on_delete=models.CASCADE, related_name="invoiceitems")
     product = models.ForeignKey("inventory.InventoryItem", on_delete=models.CASCADE)
     quantity = models.IntegerField(default=1)

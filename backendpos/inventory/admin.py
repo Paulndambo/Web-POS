@@ -8,7 +8,7 @@ class CategoryAdmin(admin.ModelAdmin):
 
 @admin.register(InventoryItem)
 class InventoryItemAdmin(admin.ModelAdmin):
-    list_display = ["id", "name", "business", "category", "barcode", "quantity", "buying_price", "selling_price", "created_at"]
+    list_display = ["id", "name", "business", "category", "barcode", "quantity", "buying_price", "selling_price", "supplier", "created_at"]
 
 
 @admin.register(InventoryLog)

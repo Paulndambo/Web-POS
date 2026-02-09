@@ -540,24 +540,14 @@ const ViewSupplierInvoice = () => {
           <div className="flex flex-wrap gap-3">
             {/* Status Action Buttons */}
             {invoice.status?.toLowerCase() === 'unpaid' && (
-              <>
-                <button
-                  onClick={() => handleUpdateStatus('Approved')}
-                  disabled={updatingStatus}
-                  className="bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white px-6 py-3 rounded-lg font-semibold flex items-center justify-center gap-2 shadow-md hover:shadow-lg transition disabled:cursor-not-allowed"
-                >
-                  <CheckCircle size={20} />
-                  Approve
-                </button>
-                <button
-                  onClick={() => handleUpdateStatus('Cancelled')}
-                  disabled={updatingStatus}
-                  className="bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white px-6 py-3 rounded-lg font-semibold flex items-center justify-center gap-2 shadow-md hover:shadow-lg transition disabled:cursor-not-allowed"
-                >
-                  <X size={20} />
-                  Cancel
-                </button>
-              </>
+              <button
+                onClick={() => handleUpdateStatus('Approved')}
+                disabled={updatingStatus}
+                className="bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white px-6 py-3 rounded-lg font-semibold flex items-center justify-center gap-2 shadow-md hover:shadow-lg transition disabled:cursor-not-allowed"
+              >
+                <CheckCircle size={20} />
+                Approve
+              </button>
             )}
             {(invoice.status?.toLowerCase() === 'approved' || invoice.status?.toLowerCase() === 'partially paid' || invoice.status?.toLowerCase() === 'partial') && (
               <button

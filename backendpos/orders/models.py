@@ -3,6 +3,11 @@ from decimal import Decimal
 
 from core.models import AbstractBaseModel
 # Create your models here.
+ORDER_TYPES = [
+    ("BNPL", "BNPL"),
+    ("Paid", "Paid"),
+]
+
 class Order(AbstractBaseModel):
     business = models.ForeignKey("core.Business", on_delete=models.CASCADE, related_name="businessorders")
     branch = models.ForeignKey("core.Branch", on_delete=models.SET_NULL, null=True, related_name="branchorders")
@@ -16,6 +21,7 @@ class Order(AbstractBaseModel):
     change = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0'))
     status = models.CharField(max_length=50)
     sold_by = models.ForeignKey("users.User", on_delete=models.SET_NULL, null=True, related_name="orders")
+    order_type = models.CharField(max_length=50, default="Paid", choices=ORDER_TYPES)
 
     def __str__(self):
         return self.order_number

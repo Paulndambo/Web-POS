@@ -10,7 +10,8 @@ from core.mixins import BusinessScopedQuerysetMixin
 from inventory.serializers import (
     InventoryItemSerializer, CategorySerializer,
     MenuSerializer,
-    StockRestokSerializer
+    StockRestokSerializer,
+    InventoryLogSerializer
 )
 from inventory.models import InventoryItem, Category, Menu, InventoryLog
 # Create your views here.
@@ -89,3 +90,10 @@ class StockRestockAPIView(generics.CreateAPIView):
             )
             return Response({"success": "Stock item successfully updated"}, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+
+
+class InventoryLogAPIView(BusinessScopedQuerysetMixin, generics.ListAPIView):
+    queryset = InventoryLog.objects.all().order_by("-created_at")
+    serializer_class = InventoryLogSerializer
+    permission_classes = [IsAuthenticated]
