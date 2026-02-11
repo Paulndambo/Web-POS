@@ -47,6 +47,15 @@ class BNPLInstallment(AbstractBaseModel):
     due_date = models.DateTimeField()
     paid_date = models.DateTimeField(blank=True, null=True)
     status = models.CharField(max_length=50, default="Pending")
+    paid_installment = models.PositiveSmallIntegerField(default=0, db_index=True)
 
     def __str__(self):
         return f"Installment {self.id} for Purchase {self.purchase.id}"
+    
+
+    def save(self, *args, **kwargs):
+        self.paid_installment = 1 if self.status == "Paid" else 0
+        super().save(*args, **kwargs)
+    
+    class Meta:
+        ordering = ["paid_installment", "due_date"]

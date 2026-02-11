@@ -2,10 +2,7 @@ from rest_framework import serializers
 from .models import BNPLServiceProvider, BNPLPurchase, BNPLInstallment
 
 
-class BNPLInstallmentSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = BNPLInstallment
-        fields = '__all__'
+
 
 
 class BNPLPurchaseSerializer(serializers.ModelSerializer):
@@ -14,6 +11,10 @@ class BNPLPurchaseSerializer(serializers.ModelSerializer):
         model = BNPLPurchase
         fields = '__all__'
 
+class BNPLInstallmentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = BNPLInstallment
+        fields = '__all__'
 
 class BNPLPurchaseDetailSerializer(serializers.ModelSerializer):
     customer_name=serializers.CharField(source="customer.customer_name", read_only=True)

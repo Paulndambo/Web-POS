@@ -6,11 +6,11 @@ import {
   ArrowLeft, Users, DollarSign, 
   TrendingUp, Calendar, RefreshCw, AlertCircle,
   CreditCard, CheckCircle, Clock, Building2, FileText, Eye,
-  ChevronLeft, ChevronRight
+  ChevronLeft, ChevronRight, X, Receipt
 } from 'lucide-react';
-import { apiGet } from '../utils/api.js';
+import { apiGet, apiPost } from '../utils/api.js';
 import { useAuth } from '../contexts/AuthContext.jsx';
-import { showError } from '../utils/toast.js';
+import { showError, showSuccess } from '../utils/toast.js';
 
 const ViewBNPLPurchase = () => {
   const { id } = useParams();
@@ -25,6 +25,24 @@ const ViewBNPLPurchase = () => {
   // Pagination state for installments
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
+
+  // Payment modal state
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [showBulkPaymentModal, setShowBulkPaymentModal] = useState(false);
+  const [showReceiptModal, setShowReceiptModal] = useState(false);
+  const [selectedInstallment, setSelectedInstallment] = useState(null);
+  const [selectedReceiptInstallment, setSelectedReceiptInstallment] = useState(null);
+  const [paymentFormData, setPaymentFormData] = useState({
+    amount: '',
+    payment_method: 'Mobile Money',
+    receipt_number: ''
+  });
+  const [bulkPaymentFormData, setBulkPaymentFormData] = useState({
+    number_of_installments: '',
+    payment_method: 'Mobile Money',
+    receipt_number: ''
+  });
+  const [submittingPayment, setSubmittingPayment] = useState(false);
 
   const fetchPurchaseDetails = async () => {
     try {
@@ -62,6 +80,202 @@ const ViewBNPLPurchase = () => {
   useEffect(() => {
     setCurrentPage(1);
   }, [installments.length]);
+
+  // Handle opening payment modal
+  const handleOpenPaymentModal = (installment) => {
+    const amountExpected = parseFloat(installment.amount_expected || 0);
+    const amountPaid = parseFloat(installment.amount_paid || 0);
+    const remainingAmount = amountExpected - amountPaid;
+    
+    setSelectedInstallment(installment);
+    setPaymentFormData({
+      amount: remainingAmount > 0 ? remainingAmount.toFixed(2) : amountExpected.toFixed(2),
+      payment_method: 'Mobile Money',
+      receipt_number: ''
+    });
+    setShowPaymentModal(true);
+  };
+
+  // Handle closing payment modal
+  const handleClosePaymentModal = () => {
+    setShowPaymentModal(false);
+    setSelectedInstallment(null);
+    setPaymentFormData({
+      amount: '',
+      payment_method: 'Mobile Money',
+      receipt_number: ''
+    });
+  };
+
+  // Handle opening bulk payment modal
+  const handleOpenBulkPaymentModal = () => {
+    setBulkPaymentFormData({
+      number_of_installments: '',
+      payment_method: 'Mobile Money',
+      receipt_number: ''
+    });
+    setShowBulkPaymentModal(true);
+  };
+
+  // Handle closing bulk payment modal
+  const handleCloseBulkPaymentModal = () => {
+    setShowBulkPaymentModal(false);
+    setBulkPaymentFormData({
+      number_of_installments: '',
+      payment_method: 'Mobile Money',
+      receipt_number: ''
+    });
+  };
+
+  // Handle opening receipt view modal
+  const handleOpenReceiptModal = (installment) => {
+    setSelectedReceiptInstallment(installment);
+    setShowReceiptModal(true);
+  };
+
+  // Handle closing receipt view modal
+  const handleCloseReceiptModal = () => {
+    setShowReceiptModal(false);
+    setSelectedReceiptInstallment(null);
+  };
+
+  // Handle bulk payment submission
+  const handleSubmitBulkPayment = async (e) => {
+    e.preventDefault();
+
+    const numberOfInstallments = parseInt(bulkPaymentFormData.number_of_installments);
+    const installmentAmount = parseFloat(purchase.installment_amount || 0);
+    
+    // Calculate maximum number of unpaid installments
+    const unpaidInstallments = installments.filter(i => {
+      const amountExpected = parseFloat(i.amount_expected || 0);
+      const amountPaid = parseFloat(i.amount_paid || 0);
+      return amountPaid < amountExpected;
+    });
+    const maxInstallments = unpaidInstallments.length;
+
+    if (!numberOfInstallments || numberOfInstallments <= 0) {
+      showError('Number of installments must be greater than 0');
+      return;
+    }
+
+    if (numberOfInstallments > maxInstallments) {
+      showError(`Number of installments cannot exceed ${maxInstallments} unpaid installments`);
+      return;
+    }
+
+    // Calculate payment amount
+    const paymentAmount = numberOfInstallments * installmentAmount;
+
+    // Note: We allow the calculated amount to slightly exceed outstanding amount due to rounding
+    // This is acceptable for bulk payments
+
+    try {
+      setSubmittingPayment(true);
+
+      // Generate receipt number if not provided
+      const receiptNumber = bulkPaymentFormData.receipt_number.trim() || generateReceiptNumber();
+
+      const paymentData = {
+        loan: parseInt(id),
+        installment: 0,
+        amount: paymentAmount,
+        payment_method: bulkPaymentFormData.payment_method,
+        receipt_number: receiptNumber,
+        payment_type: 'bulk',
+        installments_count: numberOfInstallments
+      };
+
+      const response = await apiPost('/payments/make-bnpl-payment/', paymentData);
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || errorData.message || `HTTP error! status: ${response.status}`);
+      }
+
+      const responseData = await response.text();
+      console.log('Bulk payment submitted successfully:', responseData);
+
+      showSuccess('Bulk payment submitted successfully!');
+      handleCloseBulkPaymentModal();
+      
+      // Refresh purchase details to show updated payment information
+      await fetchPurchaseDetails();
+    } catch (error) {
+      console.error('Error submitting bulk payment:', error);
+      showError(`Failed to submit bulk payment: ${error.message}`);
+    } finally {
+      setSubmittingPayment(false);
+    }
+  };
+
+  // Generate random receipt number
+  const generateReceiptNumber = () => {
+    const timestamp = Date.now();
+    const random = Math.floor(Math.random() * 10000);
+    return `BNPL-PT-${timestamp}-${random}`;
+  };
+
+  // Handle payment submission
+  const handleSubmitPayment = async (e) => {
+    e.preventDefault();
+    
+    if (!selectedInstallment) return;
+
+    // Validate amount doesn't exceed remaining amount
+    const amountExpected = parseFloat(selectedInstallment.amount_expected || 0);
+    const amountPaid = parseFloat(selectedInstallment.amount_paid || 0);
+    const remainingAmount = amountExpected - amountPaid;
+    const paymentAmount = parseFloat(paymentFormData.amount);
+
+    if (paymentAmount > remainingAmount) {
+      showError(`Payment amount cannot exceed the remaining amount of ${CURRENCY_SYMBOL} ${remainingAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
+      return;
+    }
+
+    if (paymentAmount <= 0) {
+      showError('Payment amount must be greater than 0');
+      return;
+    }
+
+    try {
+      setSubmittingPayment(true);
+
+      // Generate receipt number if not provided
+      const receiptNumber = paymentFormData.receipt_number.trim() || generateReceiptNumber();
+
+      const paymentData = {
+        loan: parseInt(id),
+        installment: selectedInstallment.id,
+        amount: paymentAmount,
+        payment_method: paymentFormData.payment_method,
+        receipt_number: receiptNumber,
+        payment_type: 'single',
+        installments_count: 0
+      };
+
+      const response = await apiPost('/payments/make-bnpl-payment/', paymentData);
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || errorData.message || `HTTP error! status: ${response.status}`);
+      }
+
+      const responseData = await response.text();
+      console.log('Payment submitted successfully:', responseData);
+
+      showSuccess('Payment submitted successfully!');
+      handleClosePaymentModal();
+      
+      // Refresh purchase details to show updated payment information
+      await fetchPurchaseDetails();
+    } catch (error) {
+      console.error('Error submitting payment:', error);
+      showError(`Failed to submit payment: ${error.message}`);
+    } finally {
+      setSubmittingPayment(false);
+    }
+  };
 
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
@@ -148,7 +362,7 @@ const ViewBNPLPurchase = () => {
   const downPayment = parseFloat(purchase.down_payment || 0);
   const bnplAmount = parseFloat(purchase.bnpl_amount || 0);
   const amountPaid = parseFloat(purchase.amount_paid || 0);
-  const outstandingAmount = bnplAmount - amountPaid;
+  const outstandingAmount = totalAmount - amountPaid;
   
   const paidInstallments = installments.filter(i => i.status === 'Paid' || parseFloat(i.amount_paid || 0) > 0).length;
   const pendingInstallments = installments.filter(i => i.status === 'Pending').length;
@@ -383,10 +597,23 @@ const ViewBNPLPurchase = () => {
         {/* Installments Table */}
         <div className="bg-white rounded-xl shadow-md overflow-hidden">
           <div className="p-6 border-b border-gray-200">
-            <h2 className="text-xl font-bold text-gray-800">Installment Schedule</h2>
-            <p className="text-sm text-gray-600 mt-1">
-              {installments.length} installments • Total Expected: {CURRENCY_SYMBOL} {totalExpected.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} • Total Paid: {CURRENCY_SYMBOL} {totalPaidFromInstallments.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-            </p>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div>
+                <h2 className="text-xl font-bold text-gray-800">Installment Schedule</h2>
+                <p className="text-sm text-gray-600 mt-1">
+                  {installments.length} installments • Total Expected: {CURRENCY_SYMBOL} {totalExpected.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} • Total Paid: {CURRENCY_SYMBOL} {totalPaidFromInstallments.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </p>
+              </div>
+              {purchase.status?.toLowerCase() !== 'paid' && (
+                <button
+                  onClick={handleOpenBulkPaymentModal}
+                  className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-semibold flex items-center gap-2 shadow-md hover:shadow-lg transition whitespace-nowrap"
+                >
+                  <DollarSign size={20} />
+                  Make Bulk Payment
+                </button>
+              )}
+            </div>
           </div>
           
           <div className="overflow-x-auto">
@@ -411,12 +638,15 @@ const ViewBNPLPurchase = () => {
                   <th className="px-6 py-4 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">
                     Status
                   </th>
+                  <th className="px-6 py-4 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                    Actions
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
                 {installments.length === 0 ? (
                   <tr>
-                    <td colSpan="6" className="px-6 py-8 text-center text-gray-500">
+                    <td colSpan="7" className="px-6 py-8 text-center text-gray-500">
                       No installments found for this purchase.
                     </td>
                   </tr>
@@ -479,6 +709,27 @@ const ViewBNPLPurchase = () => {
                             )}
                           </span>
                         </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-center">
+                          {!isPaid ? (
+                            <button
+                              onClick={() => handleOpenPaymentModal(installment)}
+                              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 transition"
+                              title="Make Payment"
+                            >
+                              <DollarSign size={16} />
+                              Make Payment
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => handleOpenReceiptModal(installment)}
+                              className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 transition"
+                              title="View Payment Receipt"
+                            >
+                              <Receipt size={16} />
+                              View Receipt
+                            </button>
+                          )}
+                        </td>
                       </tr>
                     );
                   })
@@ -517,6 +768,406 @@ const ViewBNPLPurchase = () => {
             </div>
           )}
         </div>
+
+        {/* Payment Modal */}
+        {showPaymentModal && selectedInstallment && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-y-auto">
+            <div className="bg-white rounded-lg p-6 max-w-2xl w-full my-auto">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-2xl font-bold text-gray-800">Make Payment</h2>
+                <button
+                  onClick={handleClosePaymentModal}
+                  className="text-gray-500 hover:text-gray-700"
+                  disabled={submittingPayment}
+                >
+                  <X size={24} />
+                </button>
+              </div>
+
+              <div className="mb-4 p-4 bg-gray-50 rounded-lg">
+                <p className="text-sm text-gray-600 mb-1">Installment Details</p>
+                <p className="text-sm font-semibold text-gray-800">
+                  Due Date: {formatDate(selectedInstallment.due_date)}
+                </p>
+                <p className="text-sm font-semibold text-gray-800">
+                  Amount Expected: {CURRENCY_SYMBOL} {parseFloat(selectedInstallment.amount_expected || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </p>
+                <p className="text-sm font-semibold text-gray-800">
+                  Amount Paid: {CURRENCY_SYMBOL} {parseFloat(selectedInstallment.amount_paid || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </p>
+                {parseFloat(selectedInstallment.amount_expected || 0) > parseFloat(selectedInstallment.amount_paid || 0) && (
+                  <p className="text-sm font-semibold text-blue-600 mt-1">
+                    Remaining: {CURRENCY_SYMBOL} {(parseFloat(selectedInstallment.amount_expected || 0) - parseFloat(selectedInstallment.amount_paid || 0)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </p>
+                )}
+              </div>
+
+              <form onSubmit={handleSubmitPayment} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Amount *
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={paymentFormData.amount}
+                    readOnly
+                    className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg bg-gray-100 cursor-not-allowed"
+                    required
+                    disabled={submittingPayment}
+                  />
+                  <p className="text-xs text-gray-500 mt-1">This amount is fixed for the selected installment</p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Payment Method *
+                  </label>
+                  <select
+                    value={paymentFormData.payment_method}
+                    onChange={(e) => setPaymentFormData({ ...paymentFormData, payment_method: e.target.value })}
+                    className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
+                    required
+                    disabled={submittingPayment}
+                  >
+                    <option value="Mobile Money">Mobile Money</option>
+                    <option value="Cash">Cash</option>
+                    <option value="Bank Transfer">Bank Transfer</option>
+                    <option value="Card">Card</option>
+                    <option value="Cheque">Cheque</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Receipt Number (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={paymentFormData.receipt_number}
+                    onChange={(e) => setPaymentFormData({ ...paymentFormData, receipt_number: e.target.value })}
+                    className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
+                    disabled={submittingPayment}
+                    placeholder="Leave empty to auto-generate (e.g., BNPL-PT-1/001)"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">If left empty, a receipt number will be automatically generated</p>
+                </div>
+
+                <div className="flex gap-3 pt-4">
+                  <button
+                    type="button"
+                    onClick={handleClosePaymentModal}
+                    disabled={submittingPayment}
+                    className="flex-1 px-4 py-2 border-2 border-gray-300 text-gray-700 rounded-lg font-semibold hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={submittingPayment}
+                    className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center justify-center gap-2"
+                  >
+                    {submittingPayment ? (
+                      <>
+                        <RefreshCw size={16} className="animate-spin" />
+                        Submitting...
+                      </>
+                    ) : (
+                      <>
+                        <DollarSign size={16} />
+                        Submit Payment
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Bulk Payment Modal */}
+        {showBulkPaymentModal && purchase && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-y-auto">
+            <div className="bg-white rounded-lg p-6 max-w-2xl w-full my-auto">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-2xl font-bold text-gray-800">Make Bulk Payment</h2>
+                <button
+                  onClick={handleCloseBulkPaymentModal}
+                  className="text-gray-500 hover:text-gray-700"
+                  disabled={submittingPayment}
+                >
+                  <X size={24} />
+                </button>
+              </div>
+
+              <div className="mb-4 p-4 bg-gray-50 rounded-lg">
+                <p className="text-sm text-gray-600 mb-1">Loan Details</p>
+                <p className="text-sm font-semibold text-gray-800">
+                  BNPL Amount: {CURRENCY_SYMBOL} {parseFloat(purchase.bnpl_amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </p>
+                <p className="text-sm font-semibold text-gray-800">
+                  Amount Paid: {CURRENCY_SYMBOL} {parseFloat(purchase.amount_paid || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </p>
+                <p className="text-sm font-semibold text-blue-600 mt-1">
+                  Outstanding: {CURRENCY_SYMBOL} {(parseFloat(purchase.total_amount || 0) - parseFloat(purchase.amount_paid || 0)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </p>
+                <p className="text-sm font-semibold text-gray-800 mt-2">
+                  Installment Amount: {CURRENCY_SYMBOL} {parseFloat(purchase.installment_amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </p>
+                <p className="text-sm text-gray-600 mt-1">
+                  Unpaid Installments: {installments.filter(i => {
+                    const amountExpected = parseFloat(i.amount_expected || 0);
+                    const amountPaid = parseFloat(i.amount_paid || 0);
+                    return amountPaid < amountExpected;
+                  }).length}
+                </p>
+              </div>
+
+              <form onSubmit={handleSubmitBulkPayment} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Number of Installments to Pay *
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    max={installments.filter(i => {
+                      const amountExpected = parseFloat(i.amount_expected || 0);
+                      const amountPaid = parseFloat(i.amount_paid || 0);
+                      return amountPaid < amountExpected;
+                    }).length}
+                    value={bulkPaymentFormData.number_of_installments}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      const maxInstallments = installments.filter(i => {
+                        const amountExpected = parseFloat(i.amount_expected || 0);
+                        const amountPaid = parseFloat(i.amount_paid || 0);
+                        return amountPaid < amountExpected;
+                      }).length;
+                      // Prevent entering number greater than max
+                      if (value && parseInt(value) > maxInstallments) {
+                        setBulkPaymentFormData({ ...bulkPaymentFormData, number_of_installments: maxInstallments.toString() });
+                      } else {
+                        setBulkPaymentFormData({ ...bulkPaymentFormData, number_of_installments: value });
+                      }
+                    }}
+                    className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
+                    required
+                    disabled={submittingPayment}
+                    placeholder="Enter number of installments"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Maximum: {installments.filter(i => {
+                      const amountExpected = parseFloat(i.amount_expected || 0);
+                      const amountPaid = parseFloat(i.amount_paid || 0);
+                      return amountPaid < amountExpected;
+                    }).length} unpaid installments
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Calculated Amount *
+                  </label>
+                  <input
+                    type="text"
+                    value={bulkPaymentFormData.number_of_installments ? 
+                      `${CURRENCY_SYMBOL} ${(parseInt(bulkPaymentFormData.number_of_installments) * parseFloat(purchase.installment_amount || 0)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 
+                      `${CURRENCY_SYMBOL} 0.00`
+                    }
+                    readOnly
+                    className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg bg-gray-100 cursor-not-allowed"
+                    disabled={submittingPayment}
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    {bulkPaymentFormData.number_of_installments ? 
+                      `${bulkPaymentFormData.number_of_installments} × ${CURRENCY_SYMBOL} ${parseFloat(purchase.installment_amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} = ${CURRENCY_SYMBOL} ${(parseInt(bulkPaymentFormData.number_of_installments) * parseFloat(purchase.installment_amount || 0)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` :
+                      'Amount will be calculated based on number of installments'
+                    }
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Payment Method *
+                  </label>
+                  <select
+                    value={bulkPaymentFormData.payment_method}
+                    onChange={(e) => setBulkPaymentFormData({ ...bulkPaymentFormData, payment_method: e.target.value })}
+                    className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
+                    required
+                    disabled={submittingPayment}
+                  >
+                    <option value="Mobile Money">Mobile Money</option>
+                    <option value="Cash">Cash</option>
+                    <option value="Bank Transfer">Bank Transfer</option>
+                    <option value="Card">Card</option>
+                    <option value="Cheque">Cheque</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Receipt Number (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={bulkPaymentFormData.receipt_number}
+                    onChange={(e) => setBulkPaymentFormData({ ...bulkPaymentFormData, receipt_number: e.target.value })}
+                    className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
+                    disabled={submittingPayment}
+                    placeholder="Leave empty to auto-generate (e.g., BNPL-PT-1/001)"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">If left empty, a receipt number will be automatically generated</p>
+                </div>
+
+                <div className="flex gap-3 pt-4">
+                  <button
+                    type="button"
+                    onClick={handleCloseBulkPaymentModal}
+                    disabled={submittingPayment}
+                    className="flex-1 px-4 py-2 border-2 border-gray-300 text-gray-700 rounded-lg font-semibold hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={submittingPayment}
+                    className="flex-1 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center justify-center gap-2"
+                  >
+                    {submittingPayment ? (
+                      <>
+                        <RefreshCw size={16} className="animate-spin" />
+                        Submitting...
+                      </>
+                    ) : (
+                      <>
+                        <DollarSign size={16} />
+                        Submit Bulk Payment
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Receipt View Modal */}
+        {showReceiptModal && selectedReceiptInstallment && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-y-auto">
+            <div className="bg-white rounded-lg p-6 max-w-2xl w-full my-auto">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
+                  <Receipt className="text-green-600" size={24} />
+                  Payment Receipt
+                </h2>
+                <button
+                  onClick={handleCloseReceiptModal}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  <X size={24} />
+                </button>
+              </div>
+
+              <div className="space-y-6">
+                {/* Receipt Header */}
+                <div className="border-b border-gray-200 pb-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-sm text-gray-600">Installment Number</p>
+                    <p className="text-lg font-bold text-gray-800">
+                      Installment #{(() => {
+                        const index = installments.findIndex(i => i.id === selectedReceiptInstallment.id);
+                        return index !== -1 ? index + 1 : 'N/A';
+                      })()}
+                    </p>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm text-gray-600">Status</p>
+                    <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-semibold bg-green-100 text-green-700">
+                      <CheckCircle size={14} />
+                      Paid
+                    </span>
+                  </div>
+                </div>
+
+                {/* Installment Details */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="p-4 bg-gray-50 rounded-lg">
+                    <p className="text-sm text-gray-600 mb-1">Due Date</p>
+                    <p className="text-base font-semibold text-gray-800 flex items-center gap-2">
+                      <Calendar size={16} className="text-gray-400" />
+                      {formatDate(selectedReceiptInstallment.due_date)}
+                    </p>
+                  </div>
+                  
+                  <div className="p-4 bg-gray-50 rounded-lg">
+                    <p className="text-sm text-gray-600 mb-1">Paid Date</p>
+                    <p className="text-base font-semibold text-gray-800 flex items-center gap-2">
+                      <Calendar size={16} className="text-gray-400" />
+                      {selectedReceiptInstallment.paid_date ? formatDateTime(selectedReceiptInstallment.paid_date) : 'N/A'}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Payment Amount Details */}
+                <div className="border-t border-gray-200 pt-4">
+                  <h3 className="text-lg font-semibold text-gray-800 mb-4">Payment Details</h3>
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                      <p className="text-sm text-gray-600">Amount Expected</p>
+                      <p className="text-base font-semibold text-gray-800">
+                        {CURRENCY_SYMBOL} {parseFloat(selectedReceiptInstallment.amount_expected || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </p>
+                    </div>
+                    
+                    <div className="flex justify-between items-center p-3 bg-green-50 rounded-lg">
+                      <p className="text-sm text-gray-600">Amount Paid</p>
+                      <p className="text-base font-bold text-green-700">
+                        {CURRENCY_SYMBOL} {parseFloat(selectedReceiptInstallment.amount_paid || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </p>
+                    </div>
+
+                    {parseFloat(selectedReceiptInstallment.amount_expected || 0) > parseFloat(selectedReceiptInstallment.amount_paid || 0) && (
+                      <div className="flex justify-between items-center p-3 bg-orange-50 rounded-lg">
+                        <p className="text-sm text-gray-600">Remaining Balance</p>
+                        <p className="text-base font-semibold text-orange-700">
+                          {CURRENCY_SYMBOL} {(parseFloat(selectedReceiptInstallment.amount_expected || 0) - parseFloat(selectedReceiptInstallment.amount_paid || 0)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Loan Information */}
+                {purchase && (
+                  <div className="border-t border-gray-200 pt-4">
+                    <h3 className="text-lg font-semibold text-gray-800 mb-4">Loan Information</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="p-3 bg-gray-50 rounded-lg">
+                        <p className="text-sm text-gray-600 mb-1">Loan ID</p>
+                        <p className="text-base font-semibold text-gray-800">#{purchase.id}</p>
+                      </div>
+                      <div className="p-3 bg-gray-50 rounded-lg">
+                        <p className="text-sm text-gray-600 mb-1">Customer</p>
+                        <p className="text-base font-semibold text-gray-800">{purchase.customer_name || 'N/A'}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="mt-6 pt-4 border-t border-gray-200">
+                <button
+                  onClick={handleCloseReceiptModal}
+                  className="w-full px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg font-semibold transition"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </Layout>
   );

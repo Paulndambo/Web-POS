@@ -892,7 +892,7 @@ const PaymentModal = ({
                         <p className="text-xs text-orange-600">Down Payment:</p>
                         <p className="text-sm font-bold text-orange-800">{bnplProvider.down_payment_percentage || 0}%</p>
                         <p className="text-xs text-orange-600 mt-1">
-                          Amount: {CURRENCY_SYMBOL} {((totalAmount * parseFloat(bnplProvider.down_payment_percentage || 0)) / 100).toFixed(2)}
+                          Amount: {CURRENCY_SYMBOL} {((finalAmount * parseFloat(bnplProvider.down_payment_percentage || 0)) / 100).toFixed(2)}
                         </p>
                       </div>
                       <div>
@@ -950,7 +950,7 @@ const PaymentModal = ({
               {/* Down Payment */}
               <div>
                 <label className="block font-semibold mb-2 text-sm sm:text-base">
-                  Down Payment {bnplProvider ? `(${bnplProvider.down_payment_percentage || 0}% = ${CURRENCY_SYMBOL} ${((totalAmount * parseFloat(bnplProvider.down_payment_percentage || 0)) / 100).toFixed(2)})` : ''}:
+                  Down Payment {bnplProvider ? `(${bnplProvider.down_payment_percentage || 0}% = ${CURRENCY_SYMBOL} ${((finalAmount * parseFloat(bnplProvider.down_payment_percentage || 0)) / 100).toFixed(2)})` : ''}:
                 </label>
                 <input
                   type="number"
@@ -967,7 +967,7 @@ const PaymentModal = ({
                     }
                   }}
                   readOnly={!!bnplProvider}
-                  placeholder={bnplProvider ? ((totalAmount * parseFloat(bnplProvider.down_payment_percentage || 0)) / 100).toFixed(2) : "0.00"}
+                  placeholder={bnplProvider ? ((finalAmount * parseFloat(bnplProvider.down_payment_percentage || 0)) / 100).toFixed(2) : "0.00"}
                   className={`w-full px-3 sm:px-4 py-2 text-sm sm:text-base border-2 border-orange-300 rounded-lg focus:border-orange-500 focus:outline-none ${
                     bnplProvider ? 'bg-gray-100 cursor-not-allowed' : ''
                   }`}

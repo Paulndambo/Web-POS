@@ -9,6 +9,7 @@ class Payment(AbstractBaseModel):
     branch = models.ForeignKey("core.Branch", on_delete=models.SET_NULL, null=True, related_name="branchpayments")
     order = models.ForeignKey("orders.Order", on_delete=models.SET_NULL, null=True, related_name="orderpayments")
     invoice = models.ForeignKey("invoices.Invoice", on_delete=models.SET_NULL, null=True, related_name="invoicepayments")
+    installment = models.ForeignKey("bnpl.BNPLInstallment", on_delete=models.CASCADE, null=True, related_name="installment_payments")
     customer_name = models.CharField(max_length=255, null=True)
     subtotal = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0'))
     tax = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0'))
@@ -37,6 +38,7 @@ class BusinessLedger(AbstractBaseModel):
     debit = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
     credit = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
     description = models.TextField(null=True, blank=True)
+    reference = models.CharField(max_length=255, null=True, blank=True)
 
     class Meta:
         ordering = ["date", "created_at"]
@@ -107,3 +109,18 @@ class MpesaTransaction(AbstractBaseModel):
 
     def __str__(self):
         return f"M-Pesa Transaction {self.mpesa_receipt_number} - {self.result_desc}"
+    
+
+
+class BNPLInstallmentPayment(AbstractBaseModel):
+    business = models.ForeignKey("core.Business", on_delete=models.CASCADE, related_name="bnpl_installment_payments")
+    branch = models.ForeignKey("core.Branch", on_delete=models.CASCADE, related_name="bnpl_installment_payments")
+    customer = models.ForeignKey("customers.LoyaltyCard", on_delete=models.CASCADE, related_name="bnpl_installment_payments")
+    provider = models.ForeignKey("bnpl.BNPLServiceProvider", on_delete=models.CASCADE, related_name="bnpl_installment_payments")
+    loan = models.ForeignKey("bnpl.BNPLPurchase", on_delete=models.CASCADE, related_name="bnpl_installment_payments")
+    installment = models.ForeignKey("bnpl.BNPLInstallment", on_delete=models.CASCADE, related_name="bnpl_installment_payments", null=True, blank=True)
+    amount_paid = models.DecimalField(max_digits=10, decimal_places=2)
+    payment_date = models.DateField()
+    payment_method = models.CharField(max_length=255)
+    reference_number = models.CharField(max_length=255)
+    payment_type = models.CharField(max_length=255)

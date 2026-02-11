@@ -31,3 +31,21 @@ class MpesaSTKPushSerializer(serializers.Serializer):
 class ConfirmPaymentSerializer(serializers.Serializer):
     MerchantRequestID = serializers.CharField(max_length=255)
     CheckoutRequestID = serializers.CharField(max_length=255)
+
+
+class BNPLInstallmentPaymentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Payment
+        fields = ["id", "installment", "amount_received", "payment_method", "created_at"]
+
+
+class MakeBNPLPaymentSerializer(serializers.Serializer):
+    business = serializers.IntegerField()
+    branch = serializers.IntegerField()
+    loan = serializers.IntegerField()
+    installment = serializers.IntegerField(required=False)
+    amount = serializers.DecimalField(max_digits=10, decimal_places=2)
+    payment_method = serializers.CharField(max_length=50)
+    receipt_number = serializers.CharField(max_length=255, required=False)
+    payment_type = serializers.CharField(max_length=50)
+    installments_count = serializers.IntegerField(required=False)

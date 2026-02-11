@@ -56,11 +56,20 @@ const POS = () => {
   // Complete transaction function
   const completeTransaction = async (paymentData) => {
     const totalAmount = getTotal();
+    
+    // For BNPL, calculate total with interest
+    let finalTotal = totalAmount;
+    if (paymentData.paymentMethod === 'bnpl' && paymentData.bnplInterestRate) {
+      const interestRate = parseFloat(paymentData.bnplInterestRate || 0);
+      // Calculate with interest, then round up to whole number (consistent with original total rounding)
+      finalTotal = roundMoneyUpToWhole(totalAmount * (1 + interestRate / 100));
+    }
+    
     const receiptData = {
       items: cart,
       subtotal: getSubtotal(),
       tax: getTax(),
-      total: totalAmount,
+      total: finalTotal, // For BNPL, this includes interest
       ...paymentData, // Spread all payment data from the hook
       date: new Date().toLocaleString(),
       receiptNo: Math.floor(Math.random() * 100000)
@@ -68,6 +77,11 @@ const POS = () => {
 
     // Transform data for backend API
     const backendOrderData = transformOrderForBackend(receiptData);
+    
+    // Debug: Log the data being sent to backend for BNPL payments
+    if (paymentData.paymentMethod === 'bnpl') {
+      console.log('BNPL Payment Data being sent to backend:', JSON.stringify(backendOrderData, null, 2));
+    }
 
     try {
       const token = getAccessToken();
@@ -272,17 +286,16 @@ const POS = () => {
     // Calculate BNPL amounts if payment method is BNPL
     let bnplPerPaymentAmount = null;
     let bnplRemainingPaymentAmount = null;
+    let finalAmountWithInterest = null;
     if (orderData.paymentMethod === 'bnpl') {
-      const totalAmount = parseFloat(orderData.total || 0);
-      const interestRate = parseFloat(orderData.bnplInterestRate || 0);
+      // orderData.total already includes interest (calculated in completeTransaction)
+      // So we use it directly as the final amount with interest
+      finalAmountWithInterest = parseFloat(orderData.total || 0);
       const downPayment = parseFloat(orderData.bnplDownPayment || 0);
       const installments = parseInt(orderData.bnplInstallments || 0);
       
-      // Calculate final amount with interest
-      const finalAmount = totalAmount * (1 + interestRate / 100);
-      
       // Calculate remaining payment amount (final amount minus down payment), rounded up
-      const remaining = finalAmount - downPayment;
+      const remaining = finalAmountWithInterest - downPayment;
       bnplRemainingPaymentAmount = Math.ceil(remaining);
       
       // Calculate per payment amount (remaining divided by installments), rounded up
@@ -306,12 +319,16 @@ const POS = () => {
     const dateObj = new Date();
     const formattedDate = dateObj.toISOString().split('T')[0];
 
+    // For BNPL, orderData.total already includes interest, so use it directly
+    // For other payment methods, use the original total
+    const orderTotal = Math.ceil(parseFloat(orderData.total || 0));
+
     return {
       data: {
         items: transformedItems,
         subtotal: Math.ceil(parseFloat(orderData.subtotal)),
         tax: Math.ceil(parseFloat(orderData.tax)),
-        total: Math.ceil(parseFloat(orderData.total)), // Round total upwards to whole number
+        total: orderTotal, // For BNPL, this includes interest; otherwise original total
         paymentMethod: backendPaymentMethod,
         amountReceived: Math.ceil(parseFloat(orderData.amountReceived || 0)),
         change: Math.ceil(parseFloat(orderData.change || 0)),

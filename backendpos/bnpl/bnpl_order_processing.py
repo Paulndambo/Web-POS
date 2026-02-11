@@ -76,7 +76,7 @@ class BNPLPurchaseProcessor:
             amount_paid=self.order_data["bnplDownPayment"],
             sold_by=self.user,
             status="Partially Paid",
-            order_type=Order.Type.BNPL if hasattr(Order, "Type") else "BNPL",
+            order_type="BNPL",
         )
 
     def _create_payment(self, order: Order) -> None:
@@ -94,7 +94,7 @@ class BNPLPurchaseProcessor:
             mobile_network=self.order_data.get("mobileNetwork"),
             split_cash_amount=self.order_data.get("splitCashAmount", 0),
             split_mobile_amount=self.order_data.get("splitMobileAmount", 0),
-            status=Payment.Status.COMPLETE if hasattr(Payment, "Status") else "Complete",
+            status="Complete",
             payment_date=self.order_data.get("date", timezone.now()),
             receipt_number=self.order_data["receiptNo"],
         )

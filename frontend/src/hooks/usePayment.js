@@ -98,10 +98,13 @@ export const usePayment = ({
   }, [paymentMethod]);
 
   // Auto-calculate down payment when provider is selected
+  // Down payment should be calculated based on final amount (with interest)
   useEffect(() => {
     if (bnplProvider && totalAmount) {
+      const interestRate = parseFloat(bnplProvider.interest_rate_percentage || 0);
+      const finalAmount = totalAmount * (1 + interestRate / 100);
       const downPaymentPercentage = parseFloat(bnplProvider.down_payment_percentage || 0);
-      const calculatedDownPayment = (totalAmount * downPaymentPercentage) / 100;
+      const calculatedDownPayment = (finalAmount * downPaymentPercentage) / 100;
       setBnplDownPayment(calculatedDownPayment.toFixed(2));
     }
   }, [bnplProvider, totalAmount]);

@@ -13,5 +13,5 @@ class BNPLPurchaseAdmin(admin.ModelAdmin):
 
 @admin.register(BNPLInstallment)
 class BNPLInstallmentAdmin(admin.ModelAdmin):
-    list_display = ("id", "purchase", "amount_expected", "due_date", "status")
+    list_display = ("id", "purchase", "amount_expected", "due_date", "status", "paid_installment")
     

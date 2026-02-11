@@ -62,6 +62,7 @@ class POSOrderPlacementAPIView(generics.CreateAPIView):
                     user=request.user,
                     order_data=order_data
                 ).run()
+            
             else:
 
                 CustomerPointsProcessor(
